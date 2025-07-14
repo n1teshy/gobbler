@@ -1,0 +1,5 @@
+# --- video processing --
+
+SSIM_THRESH = 0.9
+SECONDS_PER_FRAME = 4
+NON_SCENIC_HIST_THRESH = 0.99
