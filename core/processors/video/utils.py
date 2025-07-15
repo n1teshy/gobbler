@@ -1,8 +1,15 @@
 import os
-import cv2
-from skimage.metrics import structural_similarity as ssim
 from typing import Union
+
+import cv2
 import numpy as np
+from skimage.metrics import structural_similarity as ssim
+
+import core.globals as glb
+
+topic_sys_msg = open(
+    os.path.join(glb.core_dir, "instructions/get_topics.txt"), encoding="utf-8"
+).read()
 
 
 def get_frame_info(path: str) -> tuple[int, int]:
