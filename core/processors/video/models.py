@@ -12,6 +12,7 @@ class Span(BaseModel):
         return {
             "start": self.start,
             "end": self.end,
+            "short_description": self.short_description,
             "text": self.text,
         }
 
