@@ -1,9 +1,11 @@
 from pydantic import BaseModel
+from typing import Optional
 
 
 class Span(BaseModel):
     start: float
     end: float
+    short_description: Optional[str] = None
     text: str
 
     def to_json(self) -> dict:

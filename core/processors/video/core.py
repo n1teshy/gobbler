@@ -190,7 +190,7 @@ class VideoProcessor(BaseProcessor):
 
         for i, range in enumerate(time_ranges):
             print(f"--- processing {i + 1}th, desc: {range['short_description']} ---")
-            start, end = range["start"], range["end"]
+            start, end, short_desc = range["start"], range["end"], range["short_description"]
             start_idx, end_idx, seg_idx = 0, len(segments) - 1, 0
 
             while seg_idx < len(segments):
@@ -218,7 +218,7 @@ class VideoProcessor(BaseProcessor):
             text = "".join(
                 s["text"] for s in segments[start_idx : max(start_idx, end_idx) + 1]
             ).strip()
-            spans.append(Span(start=start, end=end, text=text))
+            spans.append(Span(start=start, end=end, short_description=short_desc, text=text))
 
         return spans
 
