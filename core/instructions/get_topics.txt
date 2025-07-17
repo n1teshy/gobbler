@@ -18,3 +18,5 @@ Below are some things to keep in mind
   where they start from and end.
 - 'short_description' must be a noun-ish sentence, not saying anything about speakers.
 - follow the given output schema exactly, no extra fields.
+- skip greetings and farewells, they must be excluded from your response unless they exist in
+  the same transcript segment as something important, in which case, do include that segment.

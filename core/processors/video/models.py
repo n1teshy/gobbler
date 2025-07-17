@@ -1,5 +1,8 @@
-from pydantic import BaseModel
 from typing import Optional
+
+from pydantic import BaseModel
+
+from core.processors.image.models import Image
 
 
 class Span(BaseModel):
@@ -7,6 +10,7 @@ class Span(BaseModel):
     end: float
     short_description: Optional[str] = None
     text: str
+    frames: list[Image] = []
 
     def to_json(self) -> dict:
         return {

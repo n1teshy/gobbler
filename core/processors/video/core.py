@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 import subprocess
 import tempfile
 import warnings
@@ -11,6 +12,9 @@ from openai import AzureOpenAI
 
 import core.constants as c
 import core.cred as cred
+from core.processors.image.core import ImageProcessor
+from core.processors.image.models import Image
+from core.processors.image.utils import SceneType
 from core.processors.interfaces import BaseProcessor
 from core.processors.video.models import Span, Video
 from core.processors.video.utils import (
@@ -129,7 +133,6 @@ class VideoProcessor(BaseProcessor):
 
         try:
             audio_files = self.get_audio(path)
-
             for audio_file, start_offset in audio_files:
                 transcription = self.whisper_client.audio.transcriptions.create(
                     model=cred.AZURE_WHISPER_MODEL,
@@ -165,10 +168,13 @@ class VideoProcessor(BaseProcessor):
             response = self.llm_client.chat.completions.create(
                 model=cred.AZURE_LLM_MODEL,
                 messages=[
-                    {"role": "system", "content": topic_sys_msg},
-                    {"role": "user", "content": text},
+                    {
+                        c.LLM_FLD_ROLE: c.LLM_ROLE_SYSTEM,
+                        c.LLM_FLD_CONTENT: topic_sys_msg,
+                    },
+                    {c.LLM_FLD_ROLE: c.LLM_ROLE_USER, c.LLM_FLD_CONTENT: text},
                 ],
-                response_format={"type": "json_object"},
+                response_format={c.LLM_FLD_TYPE: "json_object"},
             )
             data = json.loads(response.choices[0].message.content)
 
@@ -188,9 +194,12 @@ class VideoProcessor(BaseProcessor):
         # TODO: use binary search? number of segments can be multi-hundred
         spans = []
 
-        for i, range in enumerate(time_ranges):
-            print(f"--- processing {i + 1}th, desc: {range['short_description']} ---")
-            start, end, short_desc = range["start"], range["end"], range["short_description"]
+        for range in time_ranges:
+            start, end, short_desc = (
+                range["start"],
+                range["end"],
+                range["short_description"],
+            )
             start_idx, end_idx, seg_idx = 0, len(segments) - 1, 0
 
             while seg_idx < len(segments):
@@ -213,31 +222,64 @@ class VideoProcessor(BaseProcessor):
                 seg_idx += 1
             end_idx == seg_idx
 
-            print(start_idx, max(start_idx, end_idx) + 1)
             # not joining with ' ' because whisper ensures that
             text = "".join(
                 s["text"] for s in segments[start_idx : max(start_idx, end_idx) + 1]
             ).strip()
-            spans.append(Span(start=start, end=end, short_description=short_desc, text=text))
+            spans.append(
+                Span(start=start, end=end, short_description=short_desc, text=text)
+            )
 
         return spans
 
-    def process(
-        self, path: str, show_progress: bool = False, use_frames: bool = False
-    ) -> Video:
+    def assign_frames(
+        self,
+        spans: list[Span],
+        frames: list[str],
+        frame_ranges: list[dict],
+        show_progress: bool = False,
+    ) -> list[Image]:
+        frame_idx = 0
+        processed_images = {}
+        image_processor = ImageProcessor()
+
+        for span in spans:
+            while frame_idx > 0 and frame_ranges[frame_idx]["start"] > span.start:
+                frame_idx -= 1
+            if frame_ranges[frame_idx]["start"] < span.start:
+                frame_idx += 1
+            while (
+                frame_idx < len(frame_ranges)
+                and min(frame_ranges[frame_idx]["end"], span.end)
+                - max(frame_ranges[frame_idx]["start"], span.start)
+                >= self.spf
+            ):
+                scene = image_processor.classify(frames[frame_idx])
+                if scene is not SceneType.VIDEO_CONFERENCE:
+                    if frame_idx not in processed_images:
+                        if show_progress:
+                            print(f"--- describing {frames[frame_idx]} ---")
+                        processed_images[frame_idx] = image_processor.process(
+                            frames[frame_idx], scene
+                        )
+                    span.frames.append(processed_images[frame_idx])
+                frame_idx += 1
+
+    def process(self, path: str, show_progress: bool = False) -> Video:
         if not os.path.exists(path):
             raise FileNotFoundError(f"Video file not found: {path}")
 
+        if show_progress:
+            print(f"--- transcribing ---")
         txpn_segments = self.transcribe(path)
-        spans = None
-        if use_frames:
-            _, frame_time_ranges = self.extract_frames(path, show_progress)
-            spans = self.get_spans(frame_time_ranges, txpn_segments)
-        else:
-            topic_time_ranges = self.get_topics(txpn_segments)
-            if topic_time_ranges is None:
-                raise RuntimeError("Failed to get topics")
-            spans = self.get_spans(topic_time_ranges, txpn_segments)
+        topic_time_ranges = self.get_topics(txpn_segments)
+        if topic_time_ranges is None:
+            raise RuntimeError("Failed to get topics")
+
+        spans = self.get_spans(topic_time_ranges, txpn_segments)
+        spans = [span for span in spans if span.end - span.start >= self.spf]
+        frames, frame_time_ranges = self.extract_frames(path, show_progress)
+        self.assign_frames(spans, frames, frame_time_ranges, show_progress)
         return Video(URI=path, spans=spans)
 
     def cleanup(self):
