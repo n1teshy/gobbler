@@ -8,7 +8,7 @@ from skimage.metrics import structural_similarity as ssim
 import core.globals as glb
 
 topic_sys_msg = open(
-    os.path.join(glb.core_dir, "instructions/get_topics.txt"), encoding="utf-8"
+    os.path.join(glb.instructions_dir, "get_topics.txt"), encoding="utf-8"
 ).read()
 
 
