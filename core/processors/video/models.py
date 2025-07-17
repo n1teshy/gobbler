@@ -18,6 +18,7 @@ class Span(BaseModel):
             "end": self.end,
             "short_description": self.short_description,
             "text": self.text,
+            "frames": [frame.to_json() for frame in self.frames],
         }
 
 

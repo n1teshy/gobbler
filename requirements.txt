@@ -3,6 +3,7 @@ transformers==4.40.0
 opencv-python==4.10.0.84
 scikit-image==0.20.0
 numpy==1.26.0
+pydantic
 
 # system level dependencies
 # - ffmpeg
