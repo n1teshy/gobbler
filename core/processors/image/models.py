@@ -1,18 +1,19 @@
 from typing import Optional
 
-from pydantic import BaseModel
-
+from core.bases import BaseFile
 from core.processors.image.utils import SceneType
 
 
-class Image(BaseModel):
-    URI: str
+class Image(BaseFile):
+    shape: str
     scene: Optional[SceneType] = None
     description: str
 
     def to_json(self) -> dict:
+        data = super().to_json()
         return {
-            "URI": self.URI,
+            **data,
+            "shape": self.shape,
             "scene": self.scene and self.scene.value,
             "description": self.description,
         }

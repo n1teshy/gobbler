@@ -1,4 +1,5 @@
 import json
+import mimetypes
 import os
 import subprocess
 import tempfile
@@ -22,7 +23,7 @@ from core.processors.video.utils import (
     get_ssim_score,
     topic_sys_msg,
 )
-from core.utils import temp_file
+from core.utils import hash_file, temp_file
 
 
 class VideoProcessor(BaseProcessor):
@@ -78,7 +79,7 @@ class VideoProcessor(BaseProcessor):
 
     def extract_frames(
         self, path: str, show_progress: bool
-    ) -> tuple[list[str], list[dict[str, float]]]:
+    ) -> tuple[list[str], list[dict[str, float]], float]:
         cap = cv2.VideoCapture(path)
         files = []
 
@@ -122,7 +123,7 @@ class VideoProcessor(BaseProcessor):
                     e_second = video_dur
                 time_ranges.append({"start": s_second, "end": e_second})
 
-            return files, time_ranges
+            return files, time_ranges, no_frames / fps
         finally:
             cap.release()
 
@@ -226,9 +227,13 @@ class VideoProcessor(BaseProcessor):
                 s["text"] for s in segments[start_idx : max(start_idx, end_idx) + 1]
             ).strip()
             spans.append(
-                Span(start=start, end=end, short_description=short_desc, text=text)
+                Span(
+                    start=start,
+                    end=end,
+                    short_description=short_desc,
+                    long_description=text,
+                )
             )
-
         return spans
 
     def assign_frames(
@@ -268,6 +273,10 @@ class VideoProcessor(BaseProcessor):
         if not os.path.exists(path):
             raise FileNotFoundError(f"Video file not found: {path}")
 
+        typ, _ = mimetypes.guess_type(path)
+        if not typ.startswith("video/"):
+            raise ValueError(f"Unsupported video file: {path}")
+
         if show_progress:
             print(f"--- transcribing ---")
         txpn_segments = self.transcribe(path)
@@ -277,9 +286,17 @@ class VideoProcessor(BaseProcessor):
 
         spans = self.get_spans(topic_time_ranges, txpn_segments)
         spans = [span for span in spans if span.end - span.start >= self.spf]
-        frames, frame_time_ranges = self.extract_frames(path, show_progress)
+        frames, frame_time_ranges, dur = self.extract_frames(path, show_progress)
         self.assign_frames(spans, frames, frame_time_ranges, show_progress)
-        return Video(URI=path, spans=spans)
+        return Video(
+            URI=path,
+            mime_type=typ,
+            size=os.path.getsize(path),
+            version=os.path.getmtime(path),
+            hash=hash_file(path),
+            duration=dur,
+            spans=spans,
+        )
 
     def cleanup(self):
         if self.frames_dir is not None:

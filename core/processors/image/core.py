@@ -1,7 +1,9 @@
 import base64
 import mimetypes
+import os
 from typing import Literal, Optional
 
+import cv2
 from openai import AzureOpenAI
 
 import core.constants as c
@@ -16,6 +18,7 @@ from core.processors.image.utils import (
     sys_msg_dsc_entities,
 )
 from core.processors.interfaces import BaseProcessor
+from core.utils import hash_file
 
 
 class ImageProcessor(BaseProcessor):
@@ -38,14 +41,11 @@ class ImageProcessor(BaseProcessor):
         self,
         path: str,
         scene: SceneType,
+        mime: str,
         abort_at_unknown: bool = False,
         unknown_desc: Optional[str] = None,
         fidelity: Literal["low", "high"] = "auto",
     ) -> Optional[str]:
-        typ, _ = mimetypes.guess_type(path)
-        if not typ.startswith("image/"):
-            raise ValueError(f"Unsupported file: {path}")
-
         if scene in self.scene_to_desc:
             return self.scene_to_desc[scene]
 
@@ -72,7 +72,7 @@ class ImageProcessor(BaseProcessor):
                         {
                             c.LLM_FLD_TYPE: c.LLM_CONTENT_TYPE_IMAGE_URL,
                             c.LLM_FLD_IMAGE_URL: {
-                                c.LLM_FLD_URL: f"data:{typ};base64,{b64_image}",
+                                c.LLM_FLD_URL: f"data:{mime};base64,{b64_image}",
                                 c.LLM_FLD_DETAIL: fidelity,
                             },
                         },
@@ -84,10 +84,23 @@ class ImageProcessor(BaseProcessor):
         return response.choices[0].message.content.strip()
 
     def process(self, path: str, scene: Optional[SceneType] = None) -> Image:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"File not found: {path}")
+
+        typ, _ = mimetypes.guess_type(path)
+        if not typ.startswith("image/"):
+            raise ValueError(f"Unsupported file: {path}")
+
         scene = scene or self.classify(path)
-        description = self.describe(path, scene)
+        shape = cv2.imread(path).shape[:2]
+        description = self.describe(path, scene, typ)
         return Image(
             URI=path,
+            mime_type=typ,
+            size=os.path.getsize(path),
+            version=os.path.getmtime(path),
+            hash=hash_file(path),
+            shape=f"{shape[0]}x{shape[1]}",
             scene=scene,
             description=description,
         )
