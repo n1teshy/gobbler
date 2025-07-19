@@ -1,7 +1,7 @@
 from typing import Optional
 
-from core.bases import BaseFile
 from core.processors.image.utils import SceneType
+from core.processors.interfaces import BaseFile
 
 
 class Image(BaseFile):

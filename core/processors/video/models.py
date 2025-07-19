@@ -2,8 +2,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from core.bases import BaseFile
 from core.processors.image.models import Image
+from core.processors.interfaces import BaseFile
 
 
 class Span(BaseModel):
