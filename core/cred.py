@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# --- Azure credentials ---
 AZURE_WHISPER_KEY = os.getenv("AZURE_WHISPER_KEY")
 AZURE_WHISPER_BASE = os.getenv("AZURE_WHISPER_BASE")
 AZURE_WHISPER_DEPLOYMENT = os.getenv("AZURE_WHISPER_DEPLOYMENT")
@@ -22,3 +23,16 @@ AZURE_VLM_BASE = os.getenv("AZURE_VLM_BASE")
 AZURE_VLM_DEPLOYMENT = os.getenv("AZURE_VLM_DEPLOYMENT")
 AZURE_VLM_VERSION = os.getenv("AZURE_VLM_VERSION")
 AZURE_VLM_MODEL = os.getenv("AZURE_VLM_MODEL")
+
+AZURE_EMB_KEY = os.getenv("AZURE_EMB_KEY")
+AZURE_EMB_BASE = os.getenv("AZURE_EMB_BASE")
+AZURE_EMB_DEPLOYMENT = os.getenv("AZURE_EMB_DEPLOYMENT")
+AZURE_EMB_VERSION = os.getenv("AZURE_EMB_VERSION")
+AZURE_EMB_MODEL = os.getenv("AZURE_EMB_MODEL")
+
+
+# --- Milvus credentials ---
+MILVUS_HOST = os.getenv("MILVUS_HOST")
+MILVUS_PORT = os.getenv("MILVUS_PORT")
+MILVUS_USER = os.getenv("MILVUS_USER")
+MILVUS_PASSWORD = os.getenv("MILVUS_PASSWORD")
