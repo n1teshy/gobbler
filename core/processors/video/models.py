@@ -24,13 +24,13 @@ class Span(BaseModel):
 
 
 class Video(BaseFile):
-    URI: str
     duration: float
     spans: list[Span]
 
     def to_json(self) -> dict:
+        data = super().to_json()
         return {
-            "URI": self.URI,
+            **data,
             "duration": self.duration,
             "spans": [span.to_json() for span in self.spans],
         }
