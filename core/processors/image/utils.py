@@ -11,6 +11,7 @@ clip_utils = (None, None)
 image_categories = [
     "a photo of a video conference showing people and/or their profiles",
     "a photo of a diagram or flowchart explaining a process",
+    "a photo of tabular data",
     "a photo of lines or paragraphs of text about a topic",
 ]
 sys_msg_dsc_diagram = open(
@@ -27,6 +28,7 @@ sys_msg_desc_text = open(
 class SceneType(str, Enum):
     VIDEO_CONFERENCE = "video conference"
     DIAGRAM = "diagram"
+    TABULAR = "tabular"
     TEXT = "text"
 
 
@@ -42,7 +44,12 @@ def get_clip_utils() -> tuple[CLIPModel, CLIPProcessor]:
 
 
 def idx_to_scene_type(idx: int) -> SceneType:
-    return [SceneType.VIDEO_CONFERENCE, SceneType.DIAGRAM, SceneType.TEXT][idx]
+    return [
+        SceneType.VIDEO_CONFERENCE,
+        SceneType.DIAGRAM,
+        SceneType.TABULAR,
+        SceneType.TEXT,
+    ][idx]
 
 
 def classify_images(
