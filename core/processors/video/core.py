@@ -16,7 +16,7 @@ from core.processors.image.core import ImageProcessor
 from core.processors.image.models import Image
 from core.processors.image.utils import SceneType
 from core.processors.interfaces import BaseProcessor
-from core.processors.video.models import Span, Video
+from core.processors.video.models import Span
 from core.processors.video.utils import (
     get_frame_info,
     get_hist_score,
@@ -190,18 +190,16 @@ class VideoProcessor(BaseProcessor):
         self,
         time_ranges: list[dict[str, float]],
         segments: list[dict[str, Union[float, str]]],
-    ) -> list[Span]:
-        # TODO: use binary search? number of segments can be multi-hundred
-        spans = []
-
+    ) -> list[dict]:
+        span_data = []
         for range in time_ranges:
-            start, end, short_desc = (
+            start, end, short_desc, keywords = (
                 range["start"],
                 range["end"],
                 range["short_description"],
+                range["keywords"],
             )
             start_idx, end_idx, seg_idx = 0, len(segments) - 1, 0
-
             while seg_idx < len(segments):
                 if abs(segments[seg_idx]["start"] - start) <= 1:
                     start_idx = seg_idx
@@ -211,7 +209,6 @@ class VideoProcessor(BaseProcessor):
                     break
                 seg_idx += 1
             start_idx = seg_idx
-
             while seg_idx < len(segments):
                 if abs(segments[seg_idx]["end"] - end) <= 1:
                     end_idx = seg_idx
@@ -220,21 +217,19 @@ class VideoProcessor(BaseProcessor):
                     end_idx = seg_idx - 1
                     break
                 seg_idx += 1
-            end_idx == seg_idx
-
             # not joining with ' ' because whisper ensures that
             text = "".join(
                 s["text"] for s in segments[start_idx : max(start_idx, end_idx) + 1]
             ).strip()
-            spans.append(
-                Span(
-                    start=start,
-                    end=end,
-                    short_description=short_desc,
-                    long_description=text,
-                )
+            span_kwargs = dict(
+                start=start,
+                end=end,
+                short_description=short_desc,
+                long_description=text,
+                keywords=keywords,
             )
-        return spans
+            span_data.append(span_kwargs)
+        return span_data
 
     def assign_frames(
         self,
@@ -242,7 +237,7 @@ class VideoProcessor(BaseProcessor):
         frames: list[str],
         frame_ranges: list[dict],
         show_progress: bool = False,
-    ) -> list[Image]:
+    ) -> None:
         frame_idx = 0
         processed_images = {}
         image_processor = ImageProcessor()
@@ -269,7 +264,7 @@ class VideoProcessor(BaseProcessor):
                     span.frames.append(processed_images[frame_idx])
                 frame_idx += 1
 
-    def process(self, path: str, show_progress: bool = False) -> Video:
+    def process(self, path: str, show_progress: bool = False) -> list[Span]:
         if not os.path.exists(path):
             raise FileNotFoundError(f"Video file not found: {path}")
 
@@ -283,20 +278,29 @@ class VideoProcessor(BaseProcessor):
         topic_time_ranges = self.get_topics(txpn_segments)
         if topic_time_ranges is None:
             raise RuntimeError("Failed to get topics")
-
-        spans = self.get_spans(topic_time_ranges, txpn_segments)
-        spans = [span for span in spans if span.end - span.start >= self.spf]
+        span_dicts = self.get_spans(topic_time_ranges, txpn_segments)
         frames, frame_time_ranges, dur = self.extract_frames(path, show_progress)
-        self.assign_frames(spans, frames, frame_time_ranges, show_progress)
-        return Video(
+        video_meta = dict(
             URI=path,
             mime_type=typ,
             size=os.path.getsize(path),
-            version=os.path.getmtime(path),
+            version=int(os.path.getmtime(path)),
             hash=hash_file(path),
-            duration=dur,
-            spans=spans,
         )
+        spans: list[Span] = []
+
+        for span_kwargs in span_dicts:
+            spans.append(
+                Span(
+                    **video_meta,
+                    **span_kwargs,
+                    duration=dur,
+                )
+            )
+
+        spans = [span for span in spans if span.end - span.start >= self.spf]
+        self.assign_frames(spans, frames, frame_time_ranges, show_progress)
+        return spans
 
     def cleanup(self):
         if self.frames_dir is not None:

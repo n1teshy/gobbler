@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,12 +13,19 @@ class BaseProcessor(ABC):
         pass
 
 
+class DBEntity(BaseModel):
+    id: Optional[int] = None
+
+    def to_json(self) -> dict:
+        return {"id": self.id}
+
+
 class BaseFile(BaseModel):
     URI: str
     mime_type: str
     size: int
     uploaded_by: str = "system"
-    uploaded_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    uploaded_at: float = Field(default_factory=lambda: int(datetime.now().timestamp()))
     version: float
     hash: str
 

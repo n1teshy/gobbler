@@ -26,7 +26,7 @@ sys_msg_desc_text = open(
 
 
 class SceneType(str, Enum):
-    VIDEO_CONFERENCE = "video conference"
+    VIDEO_CONFERENCE = "video_conference"
     DIAGRAM = "diagram"
     TABULAR = "tabular"
     TEXT = "text"

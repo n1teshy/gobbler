@@ -14,8 +14,8 @@ class AzureEmbedder:
             api_version=cred.AZURE_EMB_VERSION,
         )
 
-    def embed(self, text: str) -> list[float]:
+    def embed(self, texts: list[str]) -> list[list[float]]:
         response = self.client.embeddings.create(
-            model=cred.AZURE_EMB_MODEL, input=[text], dimensions=3072
+            model=cred.AZURE_EMB_MODEL, input=texts
         )
-        return response.data[0].embedding
+        return [x.embedding for x in response.data]

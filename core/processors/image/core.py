@@ -1,4 +1,5 @@
 import base64
+import json
 import mimetypes
 import os
 from typing import Literal, Optional
@@ -45,7 +46,7 @@ class ImageProcessor(BaseProcessor):
         abort_at_unknown: bool = False,
         unknown_desc: Optional[str] = None,
         fidelity: Literal["low", "high"] = "auto",
-    ) -> Optional[str]:
+    ) -> Optional[dict[str, str]]:
         if scene in self.scene_to_desc:
             return self.scene_to_desc[scene]
 
@@ -59,29 +60,34 @@ class ImageProcessor(BaseProcessor):
             sys_msg = sys_msg_dsc_entities
 
         b64_image = base64.b64encode(open(path, "rb").read()).decode("utf-8")
-        response = self.vlm_client.chat.completions.create(
-            model=cred.AZURE_VLM_MODEL,
-            messages=[
-                {
-                    c.LLM_FLD_ROLE: c.LLM_ROLE_SYSTEM,
-                    c.LLM_FLD_CONTENT: sys_msg,
-                },
-                {
-                    c.LLM_FLD_ROLE: c.LLM_ROLE_USER,
-                    c.LLM_FLD_CONTENT: [
-                        {
-                            c.LLM_FLD_TYPE: c.LLM_CONTENT_TYPE_IMAGE_URL,
-                            c.LLM_FLD_IMAGE_URL: {
-                                c.LLM_FLD_URL: f"data:{mime};base64,{b64_image}",
-                                c.LLM_FLD_DETAIL: fidelity,
+        for _ in range(3):
+            response = self.vlm_client.chat.completions.create(
+                model=cred.AZURE_VLM_MODEL,
+                messages=[
+                    {
+                        c.LLM_FLD_ROLE: c.LLM_ROLE_SYSTEM,
+                        c.LLM_FLD_CONTENT: sys_msg,
+                    },
+                    {
+                        c.LLM_FLD_ROLE: c.LLM_ROLE_USER,
+                        c.LLM_FLD_CONTENT: [
+                            {
+                                c.LLM_FLD_TYPE: c.LLM_CONTENT_TYPE_IMAGE_URL,
+                                c.LLM_FLD_IMAGE_URL: {
+                                    c.LLM_FLD_URL: f"data:{mime};base64,{b64_image}",
+                                    c.LLM_FLD_DETAIL: fidelity,
+                                },
                             },
-                        },
-                    ],
-                },
-            ],
-            temperature=0.5,
-        )
-        return response.choices[0].message.content.strip()
+                        ],
+                    },
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.5,
+            )
+
+            data = json.loads(response.choices[0].message.content)
+            if type(data) is dict and "description" in data and "keywords" in data:
+                return data
 
     def process(self, path: str, scene: Optional[SceneType] = None) -> Image:
         if not os.path.exists(path):
@@ -93,14 +99,17 @@ class ImageProcessor(BaseProcessor):
 
         scene = scene or self.classify(path)
         shape = cv2.imread(path).shape[:2]
-        description = self.describe(path, scene, typ)
+        desc_dict = self.describe(path, scene, typ)
+        if desc_dict is None:
+            raise RuntimeError(f"Failed to describe image: {path}")
         return Image(
             URI=path,
             mime_type=typ,
             size=os.path.getsize(path),
-            version=os.path.getmtime(path),
+            version=int(os.path.getmtime(path)),
             hash=hash_file(path),
             shape=f"{shape[0]}x{shape[1]}",
             scene=scene,
-            description=description,
+            description=desc_dict["description"],
+            keywords=desc_dict["keywords"],
         )
