@@ -22,17 +22,19 @@ def ingest_image(
     throw_if_duplicate: bool = True,
 ) -> Image:
     """
-    Ingest an image file into the database
+    Ingest an image file into the database.
 
-    Args:
-        image_path: Path to the image file
-        uploaded_by: User who uploaded the image
-        version: Version number (defaults to file modification time)
-        scene: Scene type (computed using CLIP if not provided)
-        span_id: Optional span ID to link image to
+    Parameters:
+        path (str): Path to the image file.
+        uploaded_by (str): User who uploaded the image. Defaults to 'system'.
+        version (Optional[float]): Version number (defaults to file modification time).
+        scene (Optional[SceneType]): Scene type (computed using CLIP if not provided).
+        span_id (Optional[int]): Optional span ID to link image to.
+        keywords (list[str], optional): List of keywords to associate with the image.
+        throw_if_duplicate (bool): If True, raises error if image with same hash exists. Defaults to True.
 
     Returns:
-        Image object with database ID and updated attributes
+        Image: Image object with database ID and updated attributes.
     """
     if throw_if_duplicate:
         existing_image = db_utils.images_collection.query(
@@ -83,15 +85,16 @@ def ingest_video(
     throw_if_duplicate: bool = True,
 ) -> list[Span]:
     """
-    Ingest a video file into the database with atomic transaction
+    Ingest a video file into the database with atomic transaction.
 
-    Args:
-        video_path: Path to the video file
-        uploaded_by: User who uploaded the video
-        version: Version number (defaults to file modification time)
+    Parameters:
+        path (str): Path to the video file.
+        uploaded_by (str): User who uploaded the video. Defaults to 'system'.
+        version (Optional[float]): Version number (defaults to file modification time).
+        throw_if_duplicate (bool): If True, raises error if video with same hash exists. Defaults to True.
 
     Returns:
-        Video object with database ID and updated attributes
+        list[Span]: List of Span objects with database IDs and updated attributes.
     """
     if throw_if_duplicate:
         existing_image = db_utils.spans_collection.query(
@@ -188,6 +191,24 @@ def search_images(
     limit: int = 10,
     skip: int = 0,
 ) -> list[Image]:
+    """
+    Search for images in the database using metadata and/or vector search.
+
+    Parameters:
+        mime_type (Optional[str]): Filter by MIME type.
+        uploaded_by (Optional[str]): Filter by uploader.
+        hash (Optional[str]): Filter by file hash.
+        description (Optional[str]): Search by description (vector search if provided).
+        keywords (Optional[list[str]]): Filter by keywords.
+        span_id (Optional[int]): Filter by associated span ID.
+        uploaded_before (Optional[float]): Filter by upload time (before).
+        uploaded_after (Optional[float]): Filter by upload time (after).
+        limit (int): Maximum number of results to return. Defaults to 10.
+        skip (int): Number of rows to skip (only for non-vector search). Defaults to 0.
+
+    Returns:
+        list[Image]: List of Image objects matching the query.
+    """
     if description is not None and skip > 0:
         raise ValueError("row-skipping is not supported for vector search")
 
@@ -255,6 +276,22 @@ def search_spans(
     limit: int = 10,
     skip: int = 0,
 ) -> list[Span]:
+    """
+    Search for video spans in the database using metadata and/or vector search.
+
+    Parameters:
+        video_id (Optional[int]): Filter by video ID.
+        short_description (Optional[str]): Search by short description (vector search if provided).
+        long_description (Optional[str]): Search by long description (vector search if provided).
+        keywords (Optional[list[str]]): Filter by keywords.
+        uploaded_before (Optional[float]): Filter by upload time (before).
+        uploaded_after (Optional[float]): Filter by upload time (after).
+        limit (int): Maximum number of results to return. Defaults to 10.
+        skip (int): Number of rows to skip (only for non-vector search). Defaults to 0.
+
+    Returns:
+        list[Span]: List of Span objects matching the query.
+    """
     if short_description is not None or long_description is not None and skip > 0:
         raise ValueError("row-skipping is not supported for vector search")
 

@@ -4,7 +4,7 @@ opencv-python==4.10.0.84
 scikit-image==0.20.0
 numpy==1.26.0
 pydantic
-agentic_doc==0.3.1
+openai==1.88.0
 
 # system level dependencies
 # - ffmpeg

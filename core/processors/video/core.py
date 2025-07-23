@@ -1,6 +1,7 @@
 import json
 import mimetypes
 import os
+import shutil
 import subprocess
 import tempfile
 import warnings
@@ -55,6 +56,9 @@ class VideoProcessor(BaseProcessor):
             azure_deployment=cred.AZURE_WHISPER_DEPLOYMENT,
             api_version=cred.AZURE_WHISPER_VERSION,
         )
+
+        if shutil.which("ffmpeg") is None:
+            raise EnvironmentError("ffmpeg is not installed or not found in PATH")
 
     def remove_duplicates_frames(self, files: list[str], show_progress: bool):
         idx = 1
