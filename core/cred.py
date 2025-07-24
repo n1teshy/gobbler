@@ -30,6 +30,8 @@ AZURE_EMB_DEPLOYMENT = os.getenv("AZURE_EMB_DEPLOYMENT")
 AZURE_EMB_VERSION = os.getenv("AZURE_EMB_VERSION")
 AZURE_EMB_MODEL = os.getenv("AZURE_EMB_MODEL")
 
+# --- LandingAI credentials ---
+LANDINGAI_KEY = os.getenv("VISION_AGENT_API_KEY")
 
 # --- Milvus credentials ---
 MILVUS_HOST = os.getenv("MILVUS_HOST")

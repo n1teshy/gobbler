@@ -1,8 +1,10 @@
 import hashlib
+import mimetypes
 import os.path as path
 import random
 import string
 import tempfile
+from typing import Optional
 
 
 def temp_file(suffix: str, length: int = 10) -> str:
@@ -17,3 +19,8 @@ def hash_file(file_path: str) -> str:
         for chunk in iter(lambda: f.read(4096), b""):
             sha256.update(chunk)
     return sha256.hexdigest()
+
+
+def get_mime_type(file_path: str) -> Optional[str]:
+    mime_type, _ = mimetypes.guess_type(file_path)
+    return mime_type

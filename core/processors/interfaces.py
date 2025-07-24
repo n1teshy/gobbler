@@ -26,7 +26,7 @@ class BaseFile(BaseModel):
     size: int
     uploaded_by: str = "system"
     uploaded_at: float = Field(default_factory=lambda: int(datetime.now().timestamp()))
-    version: float
+    version: int
     hash: str
 
     def to_json(self) -> dict:
