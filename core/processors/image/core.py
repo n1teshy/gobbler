@@ -19,7 +19,7 @@ from core.processors.image.utils import (
     sys_msg_dsc_entities,
 )
 from core.processors.interfaces import BaseProcessor
-from core.utils import hash_file
+from core.utils import get_file_metadata
 
 
 class ImageProcessor(BaseProcessor):
@@ -102,12 +102,12 @@ class ImageProcessor(BaseProcessor):
         desc_dict = self.describe(path, scene, typ)
         if desc_dict is None:
             raise RuntimeError(f"Failed to describe image: {path}")
+
+        metadata = get_file_metadata(path)
+        if not metadata["mime_type"].startswith("image/"):
+            raise ValueError(f"Doesn't seem to be an image {path}")
         return Image(
-            URI=path,
-            mime_type=typ,
-            size=os.path.getsize(path),
-            version=int(os.path.getmtime(path)),
-            hash=hash_file(path),
+            **metadata,
             shape=f"{shape[0]}x{shape[1]}",
             scene=scene,
             description=desc_dict["description"],

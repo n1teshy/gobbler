@@ -8,7 +8,7 @@ import core.cred as cred
 from core.processors.docs.models import DocumentObject, Position
 from core.processors.docs.utils import office_to_pdf
 from core.processors.interfaces import BaseProcessor
-from core.utils import get_mime_type, hash_file
+from core.utils import get_file_metadata
 
 
 class DocumentProcessor(BaseProcessor):
@@ -18,20 +18,11 @@ class DocumentProcessor(BaseProcessor):
         self.keybert = KeyBERT("bert-base-nli-mean-tokens")
 
     def process(self, path: str) -> list[DocumentObject]:
-        mime_type = get_mime_type(path)
-        if mime_type is None:
-            raise ValueError(f"Unsupported file: {path}")
-
-        metadata = dict(
-            URI=path,
-            mime_type=mime_type,
-            size=os.path.getsize(path),
-            version=int(os.path.getmtime(path)),
-            hash=hash_file(path),
-        )
+        metadata = get_file_metadata(path)
         doc_objects = []
         fitz_doc = None
         converted_pdf = None
+
         try:
             if not os.path.exists(path):
                 raise FileNotFoundError(f"File not found: {path}")

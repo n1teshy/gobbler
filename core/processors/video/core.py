@@ -1,5 +1,4 @@
 import json
-import mimetypes
 import os
 import shutil
 import subprocess
@@ -24,7 +23,7 @@ from core.processors.video.utils import (
     get_ssim_score,
     topic_sys_msg,
 )
-from core.utils import hash_file, temp_file
+from core.utils import get_file_metadata, temp_file
 
 
 class VideoProcessor(BaseProcessor):
@@ -156,8 +155,7 @@ class VideoProcessor(BaseProcessor):
             return segments
         finally:
             for audio_file, _ in audio_files:
-                if os.path.exists(audio_file):
-                    os.remove(audio_file)
+                os.remove(audio_file)
 
     def get_topics(
         self, segments: list[dict[str, Union[int, str]]]
@@ -272,10 +270,6 @@ class VideoProcessor(BaseProcessor):
         if not os.path.exists(path):
             raise FileNotFoundError(f"Video file not found: {path}")
 
-        typ, _ = mimetypes.guess_type(path)
-        if not typ.startswith("video/"):
-            raise ValueError(f"Unsupported video file: {path}")
-
         if show_progress:
             print(f"--- transcribing ---")
         txpn_segments = self.transcribe(path)
@@ -284,19 +278,16 @@ class VideoProcessor(BaseProcessor):
             raise RuntimeError("Failed to get topics")
         span_dicts = self.get_spans(topic_time_ranges, txpn_segments)
         frames, frame_time_ranges, dur = self.extract_frames(path, show_progress)
-        video_meta = dict(
-            URI=path,
-            mime_type=typ,
-            size=os.path.getsize(path),
-            version=int(os.path.getmtime(path)),
-            hash=hash_file(path),
-        )
+        metadata = get_file_metadata(path)
+        if not metadata["mime_type"].startswith("video/"):
+            raise ValueError(f"Doesn't seem to be a video {path}")
+
         spans: list[Span] = []
 
         for span_kwargs in span_dicts:
             spans.append(
                 Span(
-                    **video_meta,
+                    **metadata,
                     **span_kwargs,
                     duration=dur,
                 )
@@ -373,12 +364,8 @@ class VideoProcessor(BaseProcessor):
                 audio_files.append((chunk_file, current_start))
                 current_start = chunk_end
                 chunk_index += 1
-            os.remove(full_audio_f)
             return audio_files
-
-        except Exception:
-            if os.path.exists(full_audio_f):
-                os.remove(full_audio_f)
+        except:
             for audio_file, _ in audio_files:
                 if os.path.exists(audio_file):
                     os.remove(audio_file)

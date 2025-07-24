@@ -10,3 +10,4 @@ keybert==0.9.0
 
 # system level dependencies
 # - ffmpeg
+# - MS PowerPoint for office-doc to PDF conversions
