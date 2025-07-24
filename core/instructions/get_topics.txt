@@ -15,6 +15,7 @@ Below are some things to keep in mind
 - input is segments of transcript text in this format: "<start_time> - <end_time> => <text>"
 - output must follow this format:
   {"key_segments": [{"start": <number>, "end": <number>, "short_description": <string>, "keywords": <string>[]}...]}
+  'keywords' must include organizations, projects, people and other core entities/ideas discussed.
 
 - THE TOPIC EXTRACTION MUST BE BASED SOLELY ON THE MEANING AND FLOW OF THE CONVERSATION and not
   where they start from and end.
