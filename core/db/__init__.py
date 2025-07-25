@@ -72,7 +72,9 @@ def ingest_image(
             "version": processed_image.version,
             "hash": processed_image.hash,
             "shape": processed_image.shape,
-            "scene": processed_image.scene and scene_type_to_idx(processed_image.scene),
+            "scene": scene_type_to_idx(processed_image.scene)
+            if processed_image.scene
+            else None,
             "description": processed_image.description,
             "keywords": processed_image.keywords,
             "description_vector": db_utils.embedder.embed(
@@ -101,7 +103,7 @@ def search_images(
     uploaded_after: Optional[float] = None,
     limit: int = 10,
     skip: int = 0,
-) -> list[Image]:
+) -> list[tuple[float | None, Image]]:
     """
     Search for images in the database using metadata and/or vector search.
 
@@ -140,6 +142,8 @@ def search_images(
     ]
 
     exprs = []
+    images = []
+
     if mime_type:
         exprs.append(f'mime_type == "{mime_type}"')
     if uploaded_by:
@@ -158,6 +162,7 @@ def search_images(
         for kw in keywords:
             exprs.append(f'JSON_CONTAINS(keywords, "{kw}")')
     expr = " and ".join(exprs) if exprs else ""
+
     if query is not None:
         vector = db_utils.embedder.embed([query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
@@ -169,24 +174,24 @@ def search_images(
             expr=expr or None,
             output_fields=output_fields,
         )
-        hits = results[0] if results else []
-        return [
-            Image(
-                **(
-                    {hit.entity["entity"]}
-                    | {"scene": idx_to_scene_type(hit.entity["entity"]["scene"])}
-                )
-            )
-            for hit in hits
-            if "entity" in hit.entity
-        ]
+
+        for hit in results[0] if results else []:
+            if "entity" not in hit.entity:
+                continue
+            hit_data = hit.entity["entity"]
+            if hit_data["scene"] is not None:
+                hit_data["scene"] = idx_to_scene_type(hit_data["scene"])
+            images.append((hit.distance, Image(**hit_data)))
     else:
-        results = db_utils.images_collection.query(
+        hits = db_utils.images_collection.query(
             expr=expr, output_fields=output_fields, limit=limit, offset=skip
         )
-        return [
-            Image(**(r | {"scene": idx_to_scene_type(r["scene"])})) for r in results
-        ]
+        for hit in hits:
+            if hit["scene"] is not None:
+                hit["scene"] = idx_to_scene_type(hit["scene"])
+            images.append((None, Image(**hit)))
+
+    return images
 
 
 # --- video functions ---
@@ -304,7 +309,7 @@ def search_spans(
     uploaded_after: Optional[float] = None,
     limit: int = 10,
     skip: int = 0,
-) -> list[Span]:
+) -> list[tuple[float | None, Span]]:
     """
     Search for video spans in the database using metadata and/or vector search.
 
@@ -364,7 +369,11 @@ def search_spans(
             output_fields=output_fields,
         )
         hits = results[0] if results else []
-        return [Span(**hit.entity["entity"]) for hit in hits if "entity" in hit.entity]
+        return [
+            (hit.distance, Span(**hit.entity["entity"]))
+            for hit in hits
+            if "entity" in hit.entity
+        ]
     elif long_query is not None:
         vector = db_utils.embedder.embed([long_query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
@@ -377,12 +386,16 @@ def search_spans(
             output_fields=output_fields,
         )
         hits = results[0] if results else []
-        return [Span(**hit.entity["entity"]) for hit in hits if "entity" in hit.entity]
+        return [
+            (hit.distance, Span(**hit.entity["entity"]))
+            for hit in hits
+            if "entity" in hit.entity
+        ]
     else:
         results = db_utils.spans_collection.query(
             expr=expr, output_fields=output_fields, limit=limit, offset=skip
         )
-        return [Span(**r) for r in results]
+        return [(None, Span(**r)) for r in results]
 
 
 # --- document functions ---
@@ -465,7 +478,7 @@ def search_document_objects(
     keywords: Optional[list[str]] = None,
     limit: int = 10,
     skip: int = 0,
-) -> list[DocumentObject]:
+) -> list[tuple[float | None, DocumentObject]]:
     """
     Search for document objects in the database using metadata and/or vector search.
 
@@ -522,11 +535,14 @@ def search_document_objects(
         )
         hits = results[0] if results else []
         return [
-            DocumentObject(
-                **(
-                    hit.entity["entity"]
-                    | {"type": idx_to_chunk_type(hit.entity["entity"]["type"])}
-                )
+            (
+                hit.distance,
+                DocumentObject(
+                    **(
+                        hit.entity["entity"]
+                        | {"type": idx_to_chunk_type(hit.entity["entity"]["type"])}
+                    )
+                ),
             )
             for hit in hits
             if "entity" in hit.entity
@@ -536,6 +552,6 @@ def search_document_objects(
             expr=expr, output_fields=output_fields, limit=limit, offset=skip
         )
         return [
-            DocumentObject(**(r | {"type": idx_to_chunk_type(r["type"])}))
+            (None, DocumentObject(**(r | {"type": idx_to_chunk_type(r["type"])})))
             for r in results
         ]
