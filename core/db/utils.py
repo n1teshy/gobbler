@@ -16,11 +16,12 @@ from core.embedders.azure import AzureEmbedder
 
 spans_collection: Collection | None = None
 images_collection: Collection | None = None
+doc_obj_collection: Collection | None = None
 embedder: AzureEmbedder | None = None
 
 
 def init():
-    global spans_collection, images_collection, embedder
+    global spans_collection, images_collection, doc_obj_collection, embedder
 
     if embedder is None:
         embedder = AzureEmbedder()
@@ -38,6 +39,8 @@ def init():
             db.create_database(mm_db)
 
         db.using_database(mm_db)
+
+        # --- spans collection ---
 
         spans_fields = [
             FieldSchema(name="URI", dtype=DataType.VARCHAR, max_length=1024),
@@ -111,6 +114,8 @@ def init():
         except MilvusException:
             pass
 
+        # --- images collection ---
+
         images_fields = [
             FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
             FieldSchema(name="URI", dtype=DataType.VARCHAR, max_length=1024),
@@ -140,12 +145,6 @@ def init():
         else:
             images_collection = Collection("images")
 
-        images_index_params = {
-            "index_type": "HNSW",
-            "metric_type": "COSINE",
-            "params": {"M": 16, "efConstruction": 200},
-        }
-
         try:
             images_collection.create_index(
                 field_name="URI", index_params={"index_type": "TRIE"}
@@ -162,7 +161,12 @@ def init():
 
         try:
             images_collection.create_index(
-                field_name="description_vector", index_params=images_index_params
+                field_name="description_vector",
+                index_params={
+                    "index_type": "HNSW",
+                    "metric_type": "COSINE",
+                    "params": {"M": 16, "efConstruction": 200},
+                },
             )
         except MilvusException:
             pass
@@ -181,5 +185,63 @@ def init():
         except MilvusException:
             pass
 
+        # --- document objects collection ---
+
+        doc_obj_fields = [
+            FieldSchema(name="URI", dtype=DataType.VARCHAR, max_length=1024),
+            FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+            FieldSchema(name="mime_type", dtype=DataType.VARCHAR, max_length=128),
+            FieldSchema(name="size", dtype=DataType.INT64),
+            FieldSchema(name="uploaded_by", dtype=DataType.VARCHAR, max_length=256),
+            FieldSchema(name="uploaded_at", dtype=DataType.FLOAT),
+            FieldSchema(name="version", dtype=DataType.FLOAT),
+            FieldSchema(name="hash", dtype=DataType.VARCHAR, max_length=64),
+            FieldSchema(name="page", dtype=DataType.INT8),
+            FieldSchema(name="position", dtype=DataType.JSON),
+            FieldSchema(name="type", dtype=DataType.INT8),
+            FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
+            FieldSchema(name="content_vector", dtype=DataType.FLOAT_VECTOR, dim=3072),
+            FieldSchema(name="keywords", dtype=DataType.JSON),
+        ]
+
+        if not utility.has_collection("document_objects"):
+            doc_obj_schema = CollectionSchema(
+                fields=doc_obj_fields,
+                description="Document object collection",
+                enable_dynamic_field=True,
+            )
+            doc_obj_collection = Collection(
+                name="document_objects", schema=doc_obj_schema
+            )
+        else:
+            doc_obj_collection = Collection("document_objects")
+
+        try:
+            doc_obj_collection.create_index(
+                field_name="URI", index_params={"index_type": "TRIE"}
+            )
+        except MilvusException:
+            pass
+
+        try:
+            doc_obj_collection.create_index(
+                field_name="type", index_params={"index_type": "STL_SORT"}
+            )
+        except MilvusException:
+            pass
+
+        try:
+            doc_obj_collection.create_index(
+                field_name="content_vector",
+                index_params={
+                    "index_type": "HNSW",
+                    "metric_type": "COSINE",
+                    "params": {"M": 16, "efConstruction": 200},
+                },
+            )
+        except MilvusException:
+            pass
+
         spans_collection.load()
         images_collection.load()
+        doc_obj_collection.load()

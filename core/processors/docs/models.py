@@ -3,6 +3,9 @@ from collections import namedtuple
 from html import unescape
 from typing import Optional
 
+from agentic_doc.common import ChunkType
+
+from core.processors.docs.utils import chunk_type_to_idx
 from core.processors.interfaces import BaseFile, DBEntity
 
 Position = namedtuple("Position", ["top", "right", "bottom", "left"])
@@ -11,7 +14,7 @@ Position = namedtuple("Position", ["top", "right", "bottom", "left"])
 class DocumentObject(DBEntity, BaseFile):
     page: int
     position: Position
-    type: str
+    type: ChunkType
     content: str
     keywords: list[str] = []
 
@@ -44,7 +47,7 @@ class DocumentObject(DBEntity, BaseFile):
             **DBEntity.to_json(self),
             **BaseFile.to_json(self),
             "position": list(self.position),
-            "type": self.type,
+            "type": chunk_type_to_idx(self.type),
             "content": self.content,
             "keywords": self.keywords,
         }

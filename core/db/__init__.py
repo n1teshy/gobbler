@@ -1,6 +1,11 @@
 from typing import Optional
 
+from agentic_doc.common import ChunkType
+
 import core.db.utils as db_utils
+from core.processors.docs.core import DocumentProcessor
+from core.processors.docs.models import DocumentObject
+from core.processors.docs.utils import chunk_type_to_idx, idx_to_chunk_type
 from core.processors.image.core import ImageProcessor
 from core.processors.image.models import Image
 from core.processors.image.utils import SceneType, idx_to_scene_type, scene_type_to_idx
@@ -10,6 +15,10 @@ from core.utils import hash_file
 
 _image_processor: ImageProcessor | None = None
 _video_processor: VideoProcessor | None = None
+_doc_processor: DocumentProcessor | None = None
+
+
+# --- image functions ---
 
 
 def ingest_image(
@@ -78,6 +87,109 @@ def ingest_image(
         return processed_image
     except Exception as e:
         raise RuntimeError(f"Failed to process image: {str(e)}")
+
+
+def search_images(
+    mime_type: Optional[str] = None,
+    uploaded_by: Optional[str] = None,
+    hash: Optional[str] = None,
+    description: Optional[str] = None,
+    scene: Optional[SceneType] = None,
+    keywords: Optional[list[str]] = None,
+    span_id: Optional[int] = None,
+    uploaded_before: Optional[float] = None,
+    uploaded_after: Optional[float] = None,
+    limit: int = 10,
+    skip: int = 0,
+) -> list[Image]:
+    """
+    Search for images in the database using metadata and/or vector search.
+
+    Parameters:
+        mime_type (Optional[str]): Filter by MIME type.
+        uploaded_by (Optional[str]): Filter by uploader.
+        hash (Optional[str]): Filter by file hash.
+        description (Optional[str]): Search by description (vector search if provided).
+        keywords (Optional[list[str]]): Filter by keywords.
+        span_id (Optional[int]): Filter by associated span ID.
+        uploaded_before (Optional[float]): Filter by upload time (before).
+        uploaded_after (Optional[float]): Filter by upload time (after).
+        limit (int): Maximum number of results to return. Defaults to 10.
+        skip (int): Number of rows to skip (only for non-vector search). Defaults to 0.
+
+    Returns:
+        list[Image]: List of Image objects matching the query.
+    """
+    if description is not None and skip > 0:
+        raise ValueError("row-skipping is not supported for vector search")
+
+    output_fields = [
+        "id",
+        "URI",
+        "mime_type",
+        "size",
+        "uploaded_by",
+        "uploaded_at",
+        "version",
+        "hash",
+        "shape",
+        "scene",
+        "description",
+        "keywords",
+        "span_id",
+    ]
+
+    exprs = []
+    if mime_type:
+        exprs.append(f'mime_type == "{mime_type}"')
+    if uploaded_by:
+        exprs.append(f'uploaded_by == "{uploaded_by}"')
+    if hash:
+        exprs.append(f'hash == "{hash}"')
+    if scene is not None:
+        exprs.append(f"scene == {scene_type_to_idx(scene)}")
+    if span_id is not None:
+        exprs.append(f"span_id == {span_id}")
+    if uploaded_before is not None:
+        exprs.append(f"uploaded_at < {uploaded_before}")
+    if uploaded_after is not None:
+        exprs.append(f"uploaded_at > {uploaded_after}")
+    if keywords:
+        for kw in keywords:
+            exprs.append(f'JSON_CONTAINS(keywords, "{kw}")')
+    expr = " and ".join(exprs) if exprs else ""
+    if description is not None:
+        vector = db_utils.embedder.embed([description])[0]
+        search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
+        results = db_utils.images_collection.search(
+            data=[vector],
+            anns_field="description_vector",
+            param=search_params,
+            limit=limit,
+            expr=expr or None,
+            output_fields=output_fields,
+        )
+        hits = results[0] if results else []
+        return [
+            Image(
+                **(
+                    {hit.entity["entity"]}
+                    | {"scene": idx_to_scene_type(hit.entity["entity"]["scene"])}
+                )
+            )
+            for hit in hits
+            if "entity" in hit.entity
+        ]
+    else:
+        results = db_utils.images_collection.query(
+            expr=expr, output_fields=output_fields, limit=limit, offset=skip
+        )
+        return [
+            Image(**(r | {"scene": idx_to_scene_type(r["scene"])})) for r in results
+        ]
+
+
+# --- video functions ---
 
 
 def ingest_video(
@@ -183,106 +295,6 @@ def ingest_video(
         raise RuntimeError(f"Failed to process video: {str(e)}")
 
 
-def search_images(
-    mime_type: Optional[str] = None,
-    uploaded_by: Optional[str] = None,
-    hash: Optional[str] = None,
-    description: Optional[str] = None,
-    scene: Optional[SceneType] = None,
-    keywords: Optional[list[str]] = None,
-    span_id: Optional[int] = None,
-    uploaded_before: Optional[float] = None,
-    uploaded_after: Optional[float] = None,
-    limit: int = 10,
-    skip: int = 0,
-) -> list[Image]:
-    """
-    Search for images in the database using metadata and/or vector search.
-
-    Parameters:
-        mime_type (Optional[str]): Filter by MIME type.
-        uploaded_by (Optional[str]): Filter by uploader.
-        hash (Optional[str]): Filter by file hash.
-        description (Optional[str]): Search by description (vector search if provided).
-        keywords (Optional[list[str]]): Filter by keywords.
-        span_id (Optional[int]): Filter by associated span ID.
-        uploaded_before (Optional[float]): Filter by upload time (before).
-        uploaded_after (Optional[float]): Filter by upload time (after).
-        limit (int): Maximum number of results to return. Defaults to 10.
-        skip (int): Number of rows to skip (only for non-vector search). Defaults to 0.
-
-    Returns:
-        list[Image]: List of Image objects matching the query.
-    """
-    if description is not None and skip > 0:
-        raise ValueError("row-skipping is not supported for vector search")
-
-    output_fields = [
-        "id",
-        "URI",
-        "mime_type",
-        "size",
-        "uploaded_by",
-        "uploaded_at",
-        "version",
-        "hash",
-        "shape",
-        "scene",
-        "description",
-        "keywords",
-        "span_id",
-    ]
-
-    exprs = []
-    if mime_type:
-        exprs.append(f'mime_type == "{mime_type}"')
-    if uploaded_by:
-        exprs.append(f'uploaded_by == "{uploaded_by}"')
-    if hash:
-        exprs.append(f'hash == "{hash}"')
-    if scene is not None:
-        exprs.append(f"scene == {scene_type_to_idx(scene)}")
-    if span_id is not None:
-        exprs.append(f"span_id == {span_id}")
-    if uploaded_before is not None:
-        exprs.append(f"uploaded_at < {uploaded_before}")
-    if uploaded_after is not None:
-        exprs.append(f"uploaded_at > {uploaded_after}")
-    if keywords:
-        for kw in keywords:
-            exprs.append(f'JSON_CONTAINS(keywords, "{kw}")')
-    expr = " and ".join(exprs) if exprs else ""
-    if description is not None:
-        vector = db_utils.embedder.embed([description])[0]
-        search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
-        results = db_utils.images_collection.search(
-            data=[vector],
-            anns_field="description_vector",
-            param=search_params,
-            limit=limit,
-            expr=expr or None,
-            output_fields=output_fields,
-        )
-        hits = results[0] if results else []
-        return [
-            Image(
-                **(
-                    {hit.entity["entity"]}
-                    | {"scene": idx_to_scene_type(hit.entity["entity"]["scene"])}
-                )
-            )
-            for hit in hits
-            if "entity" in hit.entity
-        ]
-    else:
-        results = db_utils.images_collection.query(
-            expr=expr, output_fields=output_fields, limit=limit, offset=skip
-        )
-        return [
-            Image(**(r | {"scene": idx_to_scene_type(r["scene"])})) for r in results
-        ]
-
-
 def search_spans(
     video_id: Optional[int] = None,
     short_description: Optional[str] = None,
@@ -371,3 +383,159 @@ def search_spans(
             expr=expr, output_fields=output_fields, limit=limit, offset=skip
         )
         return [Span(**r) for r in results]
+
+
+# --- document functions ---
+
+
+def ingest_document(
+    path: str,
+    uploaded_by: str = "system",
+    version: Optional[float] = None,
+    throw_if_duplicate: bool = True,
+) -> list[DocumentObject]:
+    """
+    Parameters:
+        path (str): Path to the document file.
+        uploaded_by (str): User who uploaded the document. Defaults to
+            'system'.
+        version (Optional[float]): Version number (defaults to file
+            modification time).
+        throw_if_duplicate (bool): If True, raises error if document with
+            same hash exists. Defaults to True.
+
+    Returns:
+        list[DocumentObject]: List of DocumentObject instances.
+    """
+    if throw_if_duplicate:
+        existing_doc = db_utils.doc_obj_collection.query(
+            expr=f'hash == "{hash_file(path)}"', output_fields=["id"], limit=1
+        )
+        if existing_doc:
+            raise ValueError("this document already exists")
+
+    global _doc_processor
+    _doc_processor = _doc_processor or DocumentProcessor()
+    inserted_ids = []
+
+    try:
+        doc_objects = _doc_processor.process(path)
+
+        for doc_obj in doc_objects:
+            if uploaded_by is not None:
+                doc_obj.uploaded_by = uploaded_by
+            if version is not None:
+                doc_obj.version = version
+
+            doc_data = {
+                "URI": doc_obj.URI,
+                "mime_type": doc_obj.mime_type,
+                "size": doc_obj.size,
+                "uploaded_by": doc_obj.uploaded_by,
+                "uploaded_at": doc_obj.uploaded_at,
+                "version": doc_obj.version,
+                "hash": doc_obj.hash,
+                "page": doc_obj.page,
+                "position": list(doc_obj.position),
+                "type": chunk_type_to_idx(doc_obj.type),
+                "content": doc_obj.content,
+                "content_vector": db_utils.embedder.embed([doc_obj.content])[0],
+                "keywords": doc_obj.keywords,
+            }
+            result = db_utils.doc_obj_collection.insert(data=[doc_data])
+            db_utils.doc_obj_collection.flush()
+            doc_obj_id = result.primary_keys[0]
+            doc_obj.id = doc_obj_id
+            inserted_ids.append(doc_obj_id)
+        return doc_objects
+    except Exception as e:
+        for doc_obj_id in inserted_ids:
+            try:
+                db_utils.images_collection.delete(expr=f"id == {doc_obj_id}")
+                db_utils.images_collection.flush()
+            except Exception:
+                pass
+        raise RuntimeError(f"Failed to process document: {str(e)}")
+
+
+def search_document_objects(
+    page: Optional[int] = None,
+    type: Optional[ChunkType] = None,
+    keywords: Optional[list[str]] = None,
+    content: Optional[str] = None,
+    limit: int = 10,
+    skip: int = 0,
+) -> list[DocumentObject]:
+    """
+    Search for document objects in the database using metadata and/or vector search.
+
+    Parameters:
+        page (Optional[int]): Filter by page number.
+        type (Optional[ChunkType]): Filter by chunk type.
+        keywords (Optional[list[str]]): Filter by keywords.
+        content (Optional[str]): Search by content (vector search if provided).
+        limit (int): Maximum number of results to return. Defaults to 10.
+        skip (int): Number of rows to skip (only for non-vector search). Defaults to 0.
+
+    Returns:
+        list[DocumentObject]: List of DocumentObject instances matching the query.
+    """
+    if content is not None and skip > 0:
+        raise ValueError("row-skipping is not supported for vector search")
+
+    output_fields = [
+        "id",
+        "URI",
+        "mime_type",
+        "size",
+        "uploaded_by",
+        "uploaded_at",
+        "version",
+        "hash",
+        "page",
+        "position",
+        "type",
+        "content",
+        "keywords",
+    ]
+
+    exprs = []
+    if page is not None:
+        exprs.append(f"page == {page}")
+    if type is not None:
+        exprs.append(f"type == {chunk_type_to_idx(type)}")
+    if keywords:
+        for kw in keywords:
+            exprs.append(f'JSON_CONTAINS(keywords, "{kw}")')
+
+    expr = " and ".join(exprs) if exprs else ""
+    if content is not None:
+        vector = db_utils.embedder.embed([content])[0]
+        search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
+        results = db_utils.doc_obj_collection.search(
+            data=[vector],
+            anns_field="content_vector",
+            param=search_params,
+            limit=limit,
+            expr=expr or None,
+            output_fields=output_fields,
+        )
+        hits = results[0] if results else []
+        return [
+            DocumentObject(
+                **(
+                    hit.entity["entity"]
+                    | {"type": idx_to_chunk_type(hit.entity["entity"]["type"])}
+                )
+            )
+            for hit in hits
+            if "entity" in hit.entity
+        ]
+    else:
+        results = db_utils.doc_obj_collection.query(
+            expr=expr, output_fields=output_fields, limit=limit, offset=skip
+        )
+        return [
+            DocumentObject(**(r | {"type": idx_to_chunk_type(r["type"])}))
+            for r in results
+        ]

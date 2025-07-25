@@ -2,8 +2,25 @@ import os
 from pathlib import Path
 
 import comtypes.client
+from agentic_doc.common import ChunkType
 
 from core.utils import temp_file
+
+idx_2_chunk_type = [
+    ChunkType.text,
+    ChunkType.table,
+    ChunkType.figure,
+    ChunkType.marginalia,
+]
+chunk_type_2_idx = {typ: idx for idx, typ in enumerate(idx_2_chunk_type)}
+
+
+def idx_to_chunk_type(idx: int) -> ChunkType:
+    return idx_2_chunk_type[idx]
+
+
+def chunk_type_to_idx(chunk_type: ChunkType) -> int:
+    return chunk_type_2_idx[chunk_type]
 
 
 def office_to_pdf(document_path: str) -> str:
