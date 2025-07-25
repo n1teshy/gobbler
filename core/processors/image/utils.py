@@ -32,6 +32,15 @@ class SceneType(str, Enum):
     TEXT = "text"
 
 
+idx_2_scenes = [
+    SceneType.VIDEO_CONFERENCE,
+    SceneType.DIAGRAM,
+    SceneType.TABULAR,
+    SceneType.TEXT,
+]
+scenes_2_idx = {scene: idx for idx, scene in enumerate(idx_2_scenes)}
+
+
 def get_clip_utils() -> tuple[CLIPModel, CLIPProcessor]:
     global clip_utils
 
@@ -44,12 +53,11 @@ def get_clip_utils() -> tuple[CLIPModel, CLIPProcessor]:
 
 
 def idx_to_scene_type(idx: int) -> SceneType:
-    return [
-        SceneType.VIDEO_CONFERENCE,
-        SceneType.DIAGRAM,
-        SceneType.TABULAR,
-        SceneType.TEXT,
-    ][idx]
+    return idx_2_scenes[idx]
+
+
+def scene_type_to_idx(scene_type: SceneType) -> int:
+    return scenes_2_idx[scene_type]
 
 
 def classify_images(

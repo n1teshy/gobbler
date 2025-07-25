@@ -3,13 +3,13 @@ from typing import Optional
 import core.db.utils as db_utils
 from core.processors.image.core import ImageProcessor
 from core.processors.image.models import Image
-from core.processors.image.utils import SceneType
+from core.processors.image.utils import SceneType, idx_to_scene_type, scene_type_to_idx
 from core.processors.video.core import VideoProcessor
 from core.processors.video.models import Span
 from core.utils import hash_file
 
-_image_processor = ImageProcessor()
-_video_processor = VideoProcessor()
+_image_processor: ImageProcessor | None = None
+_video_processor: VideoProcessor | None = None
 
 
 def ingest_image(
@@ -43,6 +43,8 @@ def ingest_image(
         if existing_image:
             raise ValueError("this image already exists")
 
+    global _image_processor
+    _image_processor = _image_processor or ImageProcessor()
     processed_image = _image_processor.process(path, scene)
     if uploaded_by is not None:
         processed_image.uploaded_by = uploaded_by
@@ -61,7 +63,7 @@ def ingest_image(
             "version": processed_image.version,
             "hash": processed_image.hash,
             "shape": processed_image.shape,
-            "scene": processed_image.scene.value if processed_image.scene else None,
+            "scene": processed_image.scene and scene_type_to_idx(processed_image.scene),
             "description": processed_image.description,
             "keywords": processed_image.keywords,
             "description_vector": db_utils.embedder.embed(
@@ -103,6 +105,8 @@ def ingest_video(
         if existing_image:
             raise ValueError("this video already exists")
 
+    global _video_processor
+    _video_processor = _video_processor or VideoProcessor()
     spans = _video_processor.process(path)
     inserted_span_ids = []
     inserted_image_ids = []
@@ -184,6 +188,7 @@ def search_images(
     uploaded_by: Optional[str] = None,
     hash: Optional[str] = None,
     description: Optional[str] = None,
+    scene: Optional[SceneType] = None,
     keywords: Optional[list[str]] = None,
     span_id: Optional[int] = None,
     uploaded_before: Optional[float] = None,
@@ -235,6 +240,8 @@ def search_images(
         exprs.append(f'uploaded_by == "{uploaded_by}"')
     if hash:
         exprs.append(f'hash == "{hash}"')
+    if scene is not None:
+        exprs.append(f"scene == {scene_type_to_idx(scene)}")
     if span_id is not None:
         exprs.append(f"span_id == {span_id}")
     if uploaded_before is not None:
@@ -257,13 +264,23 @@ def search_images(
             output_fields=output_fields,
         )
         hits = results[0] if results else []
-        print([hit.entity for hit in hits])
-        return [Image(**hit.entity["entity"]) for hit in hits if "entity" in hit.entity]
+        return [
+            Image(
+                **(
+                    {hit.entity["entity"]}
+                    | {"scene": idx_to_scene_type(hit.entity["entity"]["scene"])}
+                )
+            )
+            for hit in hits
+            if "entity" in hit.entity
+        ]
     else:
         results = db_utils.images_collection.query(
             expr=expr, output_fields=output_fields, limit=limit, offset=skip
         )
-        return [Image(**r) for r in results]
+        return [
+            Image(**(r | {"scene": idx_to_scene_type(r["scene"])})) for r in results
+        ]
 
 
 def search_spans(

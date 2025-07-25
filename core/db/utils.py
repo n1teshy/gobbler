@@ -121,9 +121,7 @@ def init():
             FieldSchema(name="version", dtype=DataType.FLOAT),
             FieldSchema(name="hash", dtype=DataType.VARCHAR, max_length=64),
             FieldSchema(name="shape", dtype=DataType.VARCHAR, max_length=16),
-            FieldSchema(
-                name="scene", dtype=DataType.VARCHAR, max_length=128, nullable=True
-            ),
+            FieldSchema(name="scene", dtype=DataType.INT8, nullable=True),
             FieldSchema(name="description", dtype=DataType.VARCHAR, max_length=8192),
             FieldSchema(
                 name="description_vector", dtype=DataType.FLOAT_VECTOR, dim=3072
@@ -150,6 +148,20 @@ def init():
 
         try:
             images_collection.create_index(
+                field_name="URI", index_params={"index_type": "TRIE"}
+            )
+        except MilvusException:
+            pass
+
+        try:
+            images_collection.create_index(
+                field_name="scene", index_params={"index_type": "STL_SORT"}
+            )
+        except MilvusException:
+            pass
+
+        try:
+            images_collection.create_index(
                 field_name="description_vector", index_params=images_index_params
             )
         except MilvusException:
@@ -165,13 +177,6 @@ def init():
         try:
             images_collection.create_index(
                 field_name="span_id", index_params={"index_type": "STL_SORT"}
-            )
-        except MilvusException:
-            pass
-
-        try:
-            images_collection.create_index(
-                field_name="URI", index_params={"index_type": "TRIE"}
             )
         except MilvusException:
             pass
