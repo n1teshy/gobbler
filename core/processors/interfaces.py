@@ -25,7 +25,7 @@ class BaseFile(BaseModel):
     mime_type: str
     size: int
     uploaded_by: str = "system"
-    uploaded_at: float = Field(default_factory=lambda: int(datetime.now().timestamp()))
+    uploaded_at: int = Field(default_factory=lambda: int(datetime.now().timestamp()))
     version: int
     hash: str
 

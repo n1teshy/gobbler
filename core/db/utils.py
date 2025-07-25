@@ -48,17 +48,17 @@ def init():
             FieldSchema(name="mime_type", dtype=DataType.VARCHAR, max_length=128),
             FieldSchema(name="size", dtype=DataType.INT64),
             FieldSchema(name="uploaded_by", dtype=DataType.VARCHAR, max_length=256),
-            FieldSchema(name="uploaded_at", dtype=DataType.FLOAT),
+            FieldSchema(name="uploaded_at", dtype=DataType.INT64),
             FieldSchema(name="version", dtype=DataType.FLOAT),
             FieldSchema(name="hash", dtype=DataType.VARCHAR, max_length=64),
             FieldSchema(name="start", dtype=DataType.FLOAT),
             FieldSchema(name="end", dtype=DataType.FLOAT),
             FieldSchema(name="duration", dtype=DataType.FLOAT),
             FieldSchema(
-                name="short_description", dtype=DataType.VARCHAR, max_length=1024
+                name="short_description", dtype=DataType.VARCHAR, max_length=65535
             ),
             FieldSchema(
-                name="long_description", dtype=DataType.VARCHAR, max_length=8192
+                name="long_description", dtype=DataType.VARCHAR, max_length=65535
             ),
             FieldSchema(
                 name="short_description_vector", dtype=DataType.FLOAT_VECTOR, dim=3072
@@ -122,12 +122,12 @@ def init():
             FieldSchema(name="mime_type", dtype=DataType.VARCHAR, max_length=128),
             FieldSchema(name="size", dtype=DataType.INT64),
             FieldSchema(name="uploaded_by", dtype=DataType.VARCHAR, max_length=256),
-            FieldSchema(name="uploaded_at", dtype=DataType.FLOAT),
+            FieldSchema(name="uploaded_at", dtype=DataType.INT64),
             FieldSchema(name="version", dtype=DataType.FLOAT),
             FieldSchema(name="hash", dtype=DataType.VARCHAR, max_length=64),
             FieldSchema(name="shape", dtype=DataType.VARCHAR, max_length=16),
             FieldSchema(name="scene", dtype=DataType.INT8, nullable=True),
-            FieldSchema(name="description", dtype=DataType.VARCHAR, max_length=8192),
+            FieldSchema(name="description", dtype=DataType.VARCHAR, max_length=65535),
             FieldSchema(
                 name="description_vector", dtype=DataType.FLOAT_VECTOR, dim=3072
             ),
@@ -193,7 +193,7 @@ def init():
             FieldSchema(name="mime_type", dtype=DataType.VARCHAR, max_length=128),
             FieldSchema(name="size", dtype=DataType.INT64),
             FieldSchema(name="uploaded_by", dtype=DataType.VARCHAR, max_length=256),
-            FieldSchema(name="uploaded_at", dtype=DataType.FLOAT),
+            FieldSchema(name="uploaded_at", dtype=DataType.INT64),
             FieldSchema(name="version", dtype=DataType.FLOAT),
             FieldSchema(name="hash", dtype=DataType.VARCHAR, max_length=64),
             FieldSchema(name="page", dtype=DataType.INT8),

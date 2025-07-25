@@ -90,10 +90,10 @@ def ingest_image(
 
 
 def search_images(
+    query: Optional[str] = None,
     mime_type: Optional[str] = None,
     uploaded_by: Optional[str] = None,
     hash: Optional[str] = None,
-    description: Optional[str] = None,
     scene: Optional[SceneType] = None,
     keywords: Optional[list[str]] = None,
     span_id: Optional[int] = None,
@@ -120,7 +120,7 @@ def search_images(
     Returns:
         list[Image]: List of Image objects matching the query.
     """
-    if description is not None and skip > 0:
+    if query is not None and skip > 0:
         raise ValueError("row-skipping is not supported for vector search")
 
     output_fields = [
@@ -158,8 +158,8 @@ def search_images(
         for kw in keywords:
             exprs.append(f'JSON_CONTAINS(keywords, "{kw}")')
     expr = " and ".join(exprs) if exprs else ""
-    if description is not None:
-        vector = db_utils.embedder.embed([description])[0]
+    if query is not None:
+        vector = db_utils.embedder.embed([query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.images_collection.search(
             data=[vector],
@@ -296,9 +296,9 @@ def ingest_video(
 
 
 def search_spans(
+    short_query: Optional[str] = None,
+    long_query: Optional[str] = None,
     video_id: Optional[int] = None,
-    short_description: Optional[str] = None,
-    long_description: Optional[str] = None,
     keywords: Optional[list[str]] = None,
     uploaded_before: Optional[float] = None,
     uploaded_after: Optional[float] = None,
@@ -321,7 +321,7 @@ def search_spans(
     Returns:
         list[Span]: List of Span objects matching the query.
     """
-    if short_description is not None or long_description is not None and skip > 0:
+    if short_query is not None or long_query is not None and skip > 0:
         raise ValueError("row-skipping is not supported for vector search")
 
     output_fields = [
@@ -352,8 +352,8 @@ def search_spans(
     if uploaded_after is not None:
         exprs.append(f"uploaded_at > {uploaded_after}")
     expr = " and ".join(exprs) if exprs else ""
-    if short_description is not None:
-        vector = db_utils.embedder.embed([short_description])[0]
+    if short_query is not None:
+        vector = db_utils.embedder.embed([short_query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.spans_collection.search(
             data=[vector],
@@ -365,8 +365,8 @@ def search_spans(
         )
         hits = results[0] if results else []
         return [Span(**hit.entity["entity"]) for hit in hits if "entity" in hit.entity]
-    elif long_description is not None:
-        vector = db_utils.embedder.embed([long_description])[0]
+    elif long_query is not None:
+        vector = db_utils.embedder.embed([long_query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.spans_collection.search(
             data=[vector],
@@ -459,10 +459,10 @@ def ingest_document(
 
 
 def search_document_objects(
+    query: Optional[str] = None,
     page: Optional[int] = None,
     type: Optional[ChunkType] = None,
     keywords: Optional[list[str]] = None,
-    content: Optional[str] = None,
     limit: int = 10,
     skip: int = 0,
 ) -> list[DocumentObject]:
@@ -480,7 +480,7 @@ def search_document_objects(
     Returns:
         list[DocumentObject]: List of DocumentObject instances matching the query.
     """
-    if content is not None and skip > 0:
+    if query is not None and skip > 0:
         raise ValueError("row-skipping is not supported for vector search")
 
     output_fields = [
@@ -509,8 +509,8 @@ def search_document_objects(
             exprs.append(f'JSON_CONTAINS(keywords, "{kw}")')
 
     expr = " and ".join(exprs) if exprs else ""
-    if content is not None:
-        vector = db_utils.embedder.embed([content])[0]
+    if query is not None:
+        vector = db_utils.embedder.embed([query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.doc_obj_collection.search(
             data=[vector],
