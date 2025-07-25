@@ -104,6 +104,13 @@ def init():
         except MilvusException:
             pass
 
+        try:
+            spans_collection.create_index(
+                field_name="URI", index_params={"index_type": "TRIE"}
+            )
+        except MilvusException:
+            pass
+
         images_fields = [
             FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
             FieldSchema(name="URI", dtype=DataType.VARCHAR, max_length=1024),
@@ -158,6 +165,13 @@ def init():
         try:
             images_collection.create_index(
                 field_name="span_id", index_params={"index_type": "STL_SORT"}
+            )
+        except MilvusException:
+            pass
+
+        try:
+            images_collection.create_index(
+                field_name="URI", index_params={"index_type": "TRIE"}
             )
         except MilvusException:
             pass
