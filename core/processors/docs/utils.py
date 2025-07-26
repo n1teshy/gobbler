@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
 
-import comtypes.client
+import requests
 from agentic_doc.common import ChunkType
 
+import core.cred as cred
 from core.utils import temp_file
 
 idx_2_chunk_type = [
@@ -24,42 +25,20 @@ def chunk_type_to_idx(chunk_type: ChunkType) -> int:
 
 
 def office_to_pdf(document_path: str) -> str:
-    POWERPOINT_FORMATS = {".ppt", ".pptx"}
-    WORD_FORMATS = {".doc", ".docx"}
-
     extension = Path(document_path).suffix.lower()
-    if extension in POWERPOINT_FORMATS:
-        file_format = "powerpoint"
-    elif extension in WORD_FORMATS:
-        file_format = "word"
-    else:
+    if extension not in {".ppt", ".pptx", ".doc", ".docx"}:
         raise ValueError(f"Unsupported file format: {document_path}")
 
     temp_pdf_path = temp_file(".pdf")
-    app = None
-    doc = None
-    try:
-        if file_format == "powerpoint":
-            app = comtypes.client.CreateObject("Powerpoint.Application")
-            app.Visible = True
-            doc = app.Presentations.Open(
-                os.path.abspath(document_path), WithWindow=False
-            )
-            doc.SaveAs(os.path.abspath(temp_pdf_path), 32)
-        elif file_format == "word":
-            app = comtypes.client.CreateObject("Word.Application")
-            app.Visible = False
-            doc = app.Documents.Open(os.path.abspath(document_path))
-            doc.SaveAs2(os.path.abspath(temp_pdf_path), 17)
-        else:
-            raise ValueError(f"Unsupported format: {file_format}")
-        return temp_pdf_path
-    finally:
-        try:
-            if doc:
-                doc.Close()
-            if app:
-                app.Quit()
-            del app, doc
-        except:
-            pass
+    with open(document_path, "rb") as f:
+        files = {
+            "file": (os.path.basename(document_path), f, "application/octet-stream")
+        }
+        if cred.OFFICE_CONVERSION_URL is None:
+            raise EnvironmentError("OFFICE_CONVERSION_URL is missing ")
+        response = requests.post(cred.OFFICE_CONVERSION_URL, files=files)
+        if response.status_code != 200:
+            raise RuntimeError(f"Conversion failed: {response.text}")
+        with open(temp_pdf_path, "wb") as pdf_out:
+            pdf_out.write(response.content)
+    return temp_pdf_path

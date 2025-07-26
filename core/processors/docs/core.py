@@ -1,4 +1,5 @@
 import os
+import warnings
 
 import fitz
 from agentic_doc.parse import parse
@@ -16,6 +17,10 @@ class DocumentProcessor(BaseProcessor):
         if cred.LANDINGAI_KEY is None:
             raise EnvironmentError("LandingAI key is missing")
         self.keybert = KeyBERT("bert-base-nli-mean-tokens")
+        if cred.OFFICE_CONVERSION_URL is None:
+            warnings.warn(
+                "OFFICE_CONVERSION_URL is not set, you'll have a hard time with non-PDF files"
+            )
 
     def process(self, path: str) -> list[DocumentObject]:
         metadata = get_file_metadata(path)
