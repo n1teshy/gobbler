@@ -12,6 +12,7 @@ from openai import AzureOpenAI
 
 import core.constants as c
 import core.cred as cred
+from core.logger import logger
 from core.processors.image.core import ImageProcessor
 from core.processors.image.models import Image
 from core.processors.image.utils import SceneType
@@ -71,9 +72,8 @@ class VideoProcessor(BaseProcessor):
                 os.remove(files[idx])
                 idx += 1
             if show_progress:
-                print(
-                    f"--- frame de-duplication: {min((idx + 1) / len(files) * 100, 100):.2f}% ---",
-                    end="\r",
+                logger.info(
+                    f"--- frame de-duplication: {min((idx + 1) / len(files) * 100, 100):.2f}% ---"
                 )
             if idx >= len(files):
                 break
@@ -108,9 +108,8 @@ class VideoProcessor(BaseProcessor):
                         files.append(file)
 
                 if show_progress:
-                    print(
-                        f"--- frame extraction: {((index + 1) / no_frames * 100):.2f}% ---",
-                        end="\r",
+                    logger.info(
+                        f"--- frame extraction: {((index + 1) / no_frames * 100):.2f}% ---"
                     )
                 prev_gray = gray
 
@@ -185,7 +184,7 @@ class VideoProcessor(BaseProcessor):
             elif isinstance(data, dict) and "key_segments" in data:
                 return data["key_segments"]
             else:
-                print("Unexpected response format:", data)
+                logger.warning(f"Unexpected response format: {data}")
                 continue
 
     def get_spans(
@@ -259,7 +258,7 @@ class VideoProcessor(BaseProcessor):
                 if scene is not SceneType.VIDEO_CONFERENCE:
                     if frame_idx not in processed_images:
                         if show_progress:
-                            print(f"--- describing {frames[frame_idx]} ---")
+                            logger.info(f"--- describing {frames[frame_idx]} ---")
                         processed_images[frame_idx] = image_processor.process(
                             frames[frame_idx], scene
                         )
@@ -271,7 +270,7 @@ class VideoProcessor(BaseProcessor):
             raise FileNotFoundError(f"Video file not found: {path}")
 
         if show_progress:
-            print(f"--- transcribing ---")
+            logger.info(f"--- transcribing ---")
         txpn_segments = self.transcribe(path)
         topic_time_ranges = self.get_topics(txpn_segments)
         if topic_time_ranges is None:

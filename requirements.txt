@@ -11,4 +11,3 @@ requests
 
 # system level dependencies
 # - ffmpeg
-# - MS PowerPoint for office-doc to PDF conversions

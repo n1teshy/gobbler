@@ -6,6 +6,7 @@ from agentic_doc.parse import parse
 from keybert import KeyBERT
 
 import core.cred as cred
+from core.logger import logger
 from core.processors.docs.models import DocumentObject, Position
 from core.processors.docs.utils import office_to_pdf
 from core.processors.interfaces import BaseProcessor
@@ -61,4 +62,4 @@ class DocumentProcessor(BaseProcessor):
                 fitz_doc and fitz_doc.close()
                 converted_pdf and os.remove(converted_pdf)
             except PermissionError as e:
-                print(f"Failed to delete temporary file: {e}")
+                logger.warning(f"Failed to delete temporary file: {e}")
