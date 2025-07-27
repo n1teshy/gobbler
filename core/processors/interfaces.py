@@ -23,7 +23,7 @@ class DBEntity(BaseModel):
 
 
 class BaseFile(BaseModel):
-    URI: str
+    uri: str
     mime_type: str
     size: int
     uploaded_by: str = "system"
@@ -35,7 +35,7 @@ class BaseFile(BaseModel):
 
     def to_json(self) -> dict:
         return {
-            c.DB_FLD_URI: self.URI,
+            c.DB_FLD_URI: self.uri,
             c.DB_FLD_MIME_TYPE: self.mime_type,
             c.DB_FLD_SIZE: self.size,
             c.DB_FLD_UPLOADED_BY: self.uploaded_by,

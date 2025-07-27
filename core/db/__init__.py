@@ -98,7 +98,7 @@ def ingest_image(
 
     try:
         image_data = {
-            c.DB_FLD_URI: processed_image.URI,
+            c.DB_FLD_URI: processed_image.uri,
             c.DB_FLD_MIME_TYPE: processed_image.mime_type,
             c.DB_FLD_SIZE: processed_image.size,
             c.DB_FLD_UPLOADED_BY: processed_image.uploaded_by,
@@ -282,7 +282,7 @@ def ingest_video(
             if version is not None:
                 span.version = version
             span_data = {
-                c.DB_FLD_URI: span.URI,
+                c.DB_FLD_URI: span.uri,
                 c.DB_FLD_MIME_TYPE: span.mime_type,
                 c.DB_FLD_SIZE: span.size,
                 c.DB_FLD_UPLOADED_BY: span.uploaded_by,
@@ -309,7 +309,7 @@ def ingest_video(
 
             for frame in span.frames:
                 frame_data = {
-                    c.DB_FLD_URI: frame.URI,
+                    c.DB_FLD_URI: frame.uri,
                     c.DB_FLD_MIME_TYPE: frame.mime_type,
                     c.DB_FLD_SIZE: frame.size,
                     c.DB_FLD_UPLOADED_BY: frame.uploaded_by,
@@ -497,7 +497,7 @@ def ingest_document(
                 doc_obj.version = version
 
             doc_data = {
-                c.DB_FLD_URI: doc_obj.URI,
+                c.DB_FLD_URI: doc_obj.uri,
                 c.DB_FLD_MIME_TYPE: doc_obj.mime_type,
                 c.DB_FLD_SIZE: doc_obj.size,
                 c.DB_FLD_UPLOADED_BY: doc_obj.uploaded_by,

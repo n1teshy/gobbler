@@ -32,12 +32,12 @@ def get_mime_type(file_path: str) -> Optional[str]:
     return mime_type
 
 
-def get_file_metadata(path: str, URI: Optional[str] = None) -> dict:
+def get_file_metadata(path: str, uri: Optional[str] = None) -> dict:
     mime = get_mime_type(path)
     if mime is None:
         raise ValueError(f"Unsupported file {path}")
     return dict(
-        URI=URI or path,
+        uri=uri or path,
         mime_type=mime,
         size=os.path.getsize(path),
         version=int(os.path.getmtime(path)),
