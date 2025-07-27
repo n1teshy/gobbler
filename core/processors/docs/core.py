@@ -23,11 +23,12 @@ class DocumentProcessor(BaseProcessor):
     def __init__(self):
         if cred.LANDINGAI_KEY is None:
             raise EnvironmentError("LandingAI key is missing")
-        self.keybert = KeyBERT("bert-base-nli-mean-tokens")
         if cred.OFFICE_CONVERSION_URL is None:
             warnings.warn(
                 "OFFICE_CONVERSION_URL is not set, you'll have a hard time with non-PDF files"
             )
+
+        self.keybert = KeyBERT("bert-base-nli-mean-tokens")
         self.usage_file = get_usage_file(c.USAGE_LAI_OCR)
         self.usage_data = load_usage_data(self.usage_file)
         self.usage_data["pages"] = self.usage_data.get("pages", 0)

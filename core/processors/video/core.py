@@ -48,6 +48,15 @@ class VideoProcessor(BaseProcessor):
         - hist_threshold: Threshold for histogram comparison to consider frames as different. Default is 0.99.
         - scene_to_desc: User-provided mapping of scene types to descriptions, OCR API will not be used for these scene types.
         """
+        if cred.AZURE_WHISPER_KEY is None:
+            raise EnvironmentError("Missing Azure Whisper key")
+        if cred.AZURE_LLM_KEY is None:
+            raise EnvironmentError("Missing Azure LLM key")
+        if shutil.which("ffmpeg") is None:
+            raise EnvironmentError(
+                "ffmpeg is not installed or not found in PATH"
+            )
+
         self.spf = spf
         self.ssim_thresh = ssim_threshold
         self.hist_thresh = hist_threshold
@@ -55,12 +64,6 @@ class VideoProcessor(BaseProcessor):
         self.image_processor = ImageProcessor(
             scene_to_desc=scene_to_desc or {}
         )
-
-        if cred.AZURE_WHISPER_KEY is None:
-            raise EnvironmentError("Missing Azure Whisper key")
-        if cred.AZURE_LLM_KEY is None:
-            raise EnvironmentError("Missing Azure LLM key")
-
         self.llm_client = AzureOpenAI(
             api_key=cred.AZURE_LLM_KEY,
             azure_deployment=cred.AZURE_LLM_DEPLOYMENT,
@@ -73,12 +76,6 @@ class VideoProcessor(BaseProcessor):
             azure_deployment=cred.AZURE_WHISPER_DEPLOYMENT,
             api_version=cred.AZURE_WHISPER_VERSION,
         )
-
-        if shutil.which("ffmpeg") is None:
-            raise EnvironmentError(
-                "ffmpeg is not installed or not found in PATH"
-            )
-
         self.compl_usage_file = get_usage_file(c.USAGE_AOAI_COMPLETION)
         self.compl_usage_data = load_usage_data(self.compl_usage_file)
         self.txpn_usage_file = get_usage_file(c.USAGE_AOAI_TRANSCRIPTION)

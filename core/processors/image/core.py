@@ -36,6 +36,7 @@ class ImageProcessor(BaseProcessor):
         """
         if not cred.AZURE_VLM_KEY:
             raise EnvironmentError("Missing Azure VLM key")
+
         self.vlm_client = AzureOpenAI(
             api_key=cred.AZURE_VLM_KEY,
             azure_endpoint=cred.AZURE_VLM_BASE,
