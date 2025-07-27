@@ -29,6 +29,11 @@ from core.utils import (
 
 class ImageProcessor(BaseProcessor):
     def __init__(self, scene_to_desc: Optional[dict[SceneType, str]] = None):
+        """
+        Parameters:
+        - scene_to_desc: User-provided mapping of scene types to descriptions,
+            OCR API will not be used for these scene types.
+        """
         if not cred.AZURE_VLM_KEY:
             raise EnvironmentError("Missing Azure VLM key")
         self.vlm_client = AzureOpenAI(
@@ -41,7 +46,8 @@ class ImageProcessor(BaseProcessor):
         self.usage_file = get_usage_file(c.USAGE_AOAI_OCR)
         self.usage_data = load_usage_data(self.usage_file)
         self.usage_data[cred.AZURE_VLM_MODEL] = self.usage_data.get(
-            cred.AZURE_VLM_MODEL, {c.FLD_USAGE_PROMPT: 0, c.FLD_USAGE_COMPLETION: 0}
+            cred.AZURE_VLM_MODEL,
+            {c.FLD_USAGE_PROMPT: 0, c.FLD_USAGE_COMPLETION: 0},
         )
 
     def classify(self, path: str) -> Optional[SceneType]:
@@ -94,16 +100,20 @@ class ImageProcessor(BaseProcessor):
                 response_format={"type": "json_object"},
                 temperature=0.5,
             )
-            self.usage_data[cred.AZURE_VLM_MODEL][c.FLD_USAGE_PROMPT] += (
-                response.usage.prompt_tokens
-            )
-            self.usage_data[cred.AZURE_VLM_MODEL][c.FLD_USAGE_COMPLETION] += (
-                response.usage.completion_tokens
-            )
+            self.usage_data[cred.AZURE_VLM_MODEL][
+                c.FLD_USAGE_PROMPT
+            ] += response.usage.prompt_tokens
+            self.usage_data[cred.AZURE_VLM_MODEL][
+                c.FLD_USAGE_COMPLETION
+            ] += response.usage.completion_tokens
             dump_usage_data(self.usage_data, self.usage_file)
 
             data = json.loads(response.choices[0].message.content)
-            if type(data) is dict and "description" in data and "keywords" in data:
+            if (
+                type(data) is dict
+                and "description" in data
+                and "keywords" in data
+            ):
                 return data
 
     def process(self, path: str, scene: Optional[SceneType] = None) -> Image:

@@ -39,11 +39,22 @@ class VideoProcessor(BaseProcessor):
         spf: int = c.SECONDS_PER_FRAME,
         ssim_threshold: float = c.SSIM_THRESH,
         hist_threshold: float = c.NON_SCENIC_HIST_THRESH,
+        scene_to_desc: Optional[dict[SceneType, str]] = None,
     ):
+        """
+        Parameters:
+        - spf: Seconds per frame, one frame per <spf> seconds will be taken during frame-skipping.
+        - ssim_threshold: Threshold for SSIM to consider frames as different. Default is 0.9.
+        - hist_threshold: Threshold for histogram comparison to consider frames as different. Default is 0.99.
+        - scene_to_desc: User-provided mapping of scene types to descriptions, OCR API will not be used for these scene types.
+        """
         self.spf = spf
         self.ssim_thresh = ssim_threshold
         self.hist_thresh = hist_threshold
         self.frames_dir: Optional[tempfile.NamedTemporaryFile] = None
+        self.image_processor = ImageProcessor(
+            scene_to_desc=scene_to_desc or {}
+        )
 
         if cred.AZURE_WHISPER_KEY is None:
             raise EnvironmentError("Missing Azure Whisper key")
@@ -64,17 +75,22 @@ class VideoProcessor(BaseProcessor):
         )
 
         if shutil.which("ffmpeg") is None:
-            raise EnvironmentError("ffmpeg is not installed or not found in PATH")
+            raise EnvironmentError(
+                "ffmpeg is not installed or not found in PATH"
+            )
 
         self.compl_usage_file = get_usage_file(c.USAGE_AOAI_COMPLETION)
         self.compl_usage_data = load_usage_data(self.compl_usage_file)
         self.txpn_usage_file = get_usage_file(c.USAGE_AOAI_TRANSCRIPTION)
         self.txpn_usage_data = load_usage_data(self.txpn_usage_file)
-        self.compl_usage_data[cred.AZURE_LLM_MODEL] = self.compl_usage_data.get(
-            cred.AZURE_LLM_MODEL, {c.FLD_USAGE_PROMPT: 0, c.FLD_USAGE_COMPLETION: 0}
+        self.compl_usage_data[cred.AZURE_LLM_MODEL] = (
+            self.compl_usage_data.get(
+                cred.AZURE_LLM_MODEL,
+                {c.FLD_USAGE_PROMPT: 0, c.FLD_USAGE_COMPLETION: 0},
+            )
         )
-        self.txpn_usage_data[cred.AZURE_WHISPER_MODEL] = self.txpn_usage_data.get(
-            cred.AZURE_WHISPER_MODEL, {"seconds": 0}
+        self.txpn_usage_data[cred.AZURE_WHISPER_MODEL] = (
+            self.txpn_usage_data.get(cred.AZURE_WHISPER_MODEL, {"seconds": 0})
         )
 
     def remove_duplicates_frames(self, files: list[str], show_progress: bool):
@@ -121,7 +137,9 @@ class VideoProcessor(BaseProcessor):
                     score = get_hist_score(prev_gray, gray)
                     if score < self.hist_thresh:
                         seconds = index / fps
-                        file = os.path.join(self.frames_dir.name, f"{seconds}.png")
+                        file = os.path.join(
+                            self.frames_dir.name, f"{seconds}.png"
+                        )
                         cv2.imwrite(file, frame)
                         files.append(file)
 
@@ -155,10 +173,12 @@ class VideoProcessor(BaseProcessor):
         try:
             audio_files = self.get_audio(path)
             for audio_file, start_offset in audio_files:
-                transcription = self.whisper_client.audio.transcriptions.create(
-                    model=cred.AZURE_WHISPER_MODEL,
-                    file=Path(audio_file),
-                    response_format="verbose_json",
+                transcription = (
+                    self.whisper_client.audio.transcriptions.create(
+                        model=cred.AZURE_WHISPER_MODEL,
+                        file=Path(audio_file),
+                        response_format="verbose_json",
+                    )
                 )
 
                 for seg in transcription.segments:
@@ -196,12 +216,12 @@ class VideoProcessor(BaseProcessor):
                 ],
                 response_format={c.LLM_FLD_TYPE: "json_object"},
             )
-            self.compl_usage_data[cred.AZURE_LLM_MODEL][c.FLD_USAGE_PROMPT] += (
-                response.usage.prompt_tokens
-            )
-            self.compl_usage_data[cred.AZURE_LLM_MODEL][c.FLD_USAGE_COMPLETION] += (
-                response.usage.completion_tokens
-            )
+            self.compl_usage_data[cred.AZURE_LLM_MODEL][
+                c.FLD_USAGE_PROMPT
+            ] += response.usage.prompt_tokens
+            self.compl_usage_data[cred.AZURE_LLM_MODEL][
+                c.FLD_USAGE_COMPLETION
+            ] += response.usage.completion_tokens
             dump_usage_data(self.compl_usage_data, self.compl_usage_file)
             data = json.loads(response.choices[0].message.content)
 
@@ -246,7 +266,8 @@ class VideoProcessor(BaseProcessor):
                 seg_idx += 1
             # not joining with ' ' because whisper ensures that
             text = "".join(
-                s["text"] for s in segments[start_idx : max(start_idx, end_idx) + 1]
+                s["text"]
+                for s in segments[start_idx : max(start_idx, end_idx) + 1]
             ).strip()
             span_kwargs = dict(
                 start=start,
@@ -267,10 +288,11 @@ class VideoProcessor(BaseProcessor):
     ) -> None:
         frame_idx = 0
         processed_images = {}
-        image_processor = ImageProcessor()
 
         for span in spans:
-            while frame_idx > 0 and frame_ranges[frame_idx]["start"] > span.start:
+            while (
+                frame_idx > 0 and frame_ranges[frame_idx]["start"] > span.start
+            ):
                 frame_idx -= 1
             if frame_ranges[frame_idx]["start"] < span.start:
                 frame_idx += 1
@@ -280,13 +302,17 @@ class VideoProcessor(BaseProcessor):
                 - max(frame_ranges[frame_idx]["start"], span.start)
                 >= self.spf
             ):
-                scene = image_processor.classify(frames[frame_idx])
+                scene = self.image_processor.classify(frames[frame_idx])
                 if scene is not SceneType.VIDEO_CONFERENCE:
                     if frame_idx not in processed_images:
                         if show_progress:
-                            logger.info(f"--- describing {frames[frame_idx]} ---")
-                        processed_images[frame_idx] = image_processor.process(
-                            frames[frame_idx], scene
+                            logger.info(
+                                f"--- describing {frames[frame_idx]} ---"
+                            )
+                        processed_images[frame_idx] = (
+                            self.image_processor.process(
+                                frames[frame_idx], scene
+                            )
                         )
                     span.frames.append(processed_images[frame_idx])
                 frame_idx += 1
@@ -297,7 +323,9 @@ class VideoProcessor(BaseProcessor):
 
         if show_progress:
             logger.info(f"--- transcribing ---")
-        frames, frame_time_ranges, dur = self.extract_frames(path, show_progress)
+        frames, frame_time_ranges, dur = self.extract_frames(
+            path, show_progress
+        )
         txpn_segments = self.transcribe(path)
         self.txpn_usage_data[cred.AZURE_WHISPER_MODEL]["seconds"] += dur
         dump_usage_data(self.txpn_usage_data, self.txpn_usage_file)
@@ -337,7 +365,15 @@ class VideoProcessor(BaseProcessor):
 
         try:
             subprocess.run(
-                ["ffmpeg", "-i", path, "-vn", "-acodec", "pcm_s16le", full_audio_f],
+                [
+                    "ffmpeg",
+                    "-i",
+                    path,
+                    "-vn",
+                    "-acodec",
+                    "pcm_s16le",
+                    full_audio_f,
+                ],
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,

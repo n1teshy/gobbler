@@ -8,7 +8,11 @@ from core.processors.docs.models import DocumentObject
 from core.processors.docs.utils import chunk_type_to_idx, idx_to_chunk_type
 from core.processors.image.core import ImageProcessor
 from core.processors.image.models import Image
-from core.processors.image.utils import SceneType, idx_to_scene_type, scene_type_to_idx
+from core.processors.image.utils import (
+    SceneType,
+    idx_to_scene_type,
+    scene_type_to_idx,
+)
 from core.processors.video.core import VideoProcessor
 from core.processors.video.models import Span
 from core.utils import hash_file
@@ -16,6 +20,27 @@ from core.utils import hash_file
 _image_processor: ImageProcessor | None = None
 _video_processor: VideoProcessor | None = None
 _doc_processor: DocumentProcessor | None = None
+
+
+def get_image_processor() -> ImageProcessor:
+    global _image_processor
+    if _image_processor is None:
+        _image_processor = ImageProcessor()
+    return _image_processor
+
+
+def get_video_processor() -> VideoProcessor:
+    global _video_processor
+    if _video_processor is None:
+        _video_processor = VideoProcessor()
+    return _video_processor
+
+
+def get_doc_processor() -> DocumentProcessor:
+    global _doc_processor
+    if _doc_processor is None:
+        _doc_processor = DocumentProcessor()
+    return _doc_processor
 
 
 # --- image functions ---
@@ -28,6 +53,7 @@ def ingest_image(
     scene: Optional[SceneType] = None,
     span_id: Optional[int] = None,
     keywords: list[str] = None,
+    processor: Optional[ImageProcessor] = None,
     throw_if_duplicate: bool = True,
 ) -> Image:
     """
@@ -36,11 +62,17 @@ def ingest_image(
     Parameters:
         path (str): Path to the image file.
         uploaded_by (str): User who uploaded the image. Defaults to 'system'.
-        version (Optional[float]): Version number (defaults to file modification time).
-        scene (Optional[SceneType]): Scene type (computed using CLIP if not provided).
+        version (Optional[float]): Version number (defaults to file
+            modification time).
+        scene (Optional[SceneType]): Scene type (computed using CLIP if not
+            provided).
         span_id (Optional[int]): Optional span ID to link image to.
-        keywords (list[str], optional): List of keywords to associate with the image.
-        throw_if_duplicate (bool): If True, raises error if image with same hash exists. Defaults to True.
+        keywords (list[str], optional): List of keywords to associate with
+            the image.
+        processor (Optional[ImageProcessor]): Custom image processor instance.
+            Defaults to None.
+        throw_if_duplicate (bool): If True, raises error if image with same
+            hash exists. Defaults to True.
 
     Returns:
         Image: Image object with database ID and updated attributes.
@@ -52,9 +84,8 @@ def ingest_image(
         if existing_image:
             raise ValueError("this image already exists")
 
-    global _image_processor
-    _image_processor = _image_processor or ImageProcessor()
-    processed_image = _image_processor.process(path, scene)
+    processor = processor or get_image_processor()
+    processed_image = processor.process(path, scene)
     if uploaded_by is not None:
         processed_image.uploaded_by = uploaded_by
     if version is not None:
@@ -72,9 +103,11 @@ def ingest_image(
             "version": processed_image.version,
             "hash": processed_image.hash,
             "shape": processed_image.shape,
-            "scene": scene_type_to_idx(processed_image.scene)
-            if processed_image.scene
-            else None,
+            "scene": (
+                scene_type_to_idx(processed_image.scene)
+                if processed_image.scene
+                else None
+            ),
             "description": processed_image.description,
             "keywords": processed_image.keywords,
             "description_vector": db_utils.embedder.embed(
@@ -111,13 +144,15 @@ def search_images(
         mime_type (Optional[str]): Filter by MIME type.
         uploaded_by (Optional[str]): Filter by uploader.
         hash (Optional[str]): Filter by file hash.
-        description (Optional[str]): Search by description (vector search if provided).
+        description (Optional[str]): Search by description (vector search if
+            provided).
         keywords (Optional[list[str]]): Filter by keywords.
         span_id (Optional[int]): Filter by associated span ID.
         uploaded_before (Optional[float]): Filter by upload time (before).
         uploaded_after (Optional[float]): Filter by upload time (after).
         limit (int): Maximum number of results to return. Defaults to 10.
-        skip (int): Number of rows to skip (only for non-vector search). Defaults to 0.
+        skip (int): Number of rows to skip (only for non-vector search).
+            Defaults to 0.
 
     Returns:
         list[Image]: List of Image objects matching the query.
@@ -201,6 +236,7 @@ def ingest_video(
     path: str,
     uploaded_by: str = "system",
     version: Optional[float] = None,
+    processor: Optional[VideoProcessor] = None,
     throw_if_duplicate: bool = True,
 ) -> list[Span]:
     """
@@ -209,11 +245,16 @@ def ingest_video(
     Parameters:
         path (str): Path to the video file.
         uploaded_by (str): User who uploaded the video. Defaults to 'system'.
-        version (Optional[float]): Version number (defaults to file modification time).
-        throw_if_duplicate (bool): If True, raises error if video with same hash exists. Defaults to True.
+        version (Optional[float]): Version number (defaults to file modification
+            time).
+        processor (Optional[VideoProcessor]): Custom video processor instance.
+            Defaults to None.
+        throw_if_duplicate (bool): If True, raises error if video with same
+            hash exists. Defaults to True.
 
     Returns:
-        list[Span]: List of Span objects with database IDs and updated attributes.
+        list[Span]: List of Span objects with database IDs and updated
+            attributes.
     """
     if throw_if_duplicate:
         existing_image = db_utils.spans_collection.query(
@@ -222,9 +263,8 @@ def ingest_video(
         if existing_image:
             raise ValueError("this video already exists")
 
-    global _video_processor
-    _video_processor = _video_processor or VideoProcessor()
-    spans = _video_processor.process(path)
+    processor = processor or get_video_processor()
+    spans = processor.process(path)
     inserted_span_ids = []
     inserted_image_ids = []
 
@@ -274,12 +314,14 @@ def ingest_video(
                     "scene": frame.scene.value if frame.scene else None,
                     "description": frame.description,
                     "keywords": frame.keywords,
-                    "description_vector": db_utils.embedder.embed([frame.description])[
-                        0
-                    ],
+                    "description_vector": db_utils.embedder.embed(
+                        [frame.description]
+                    )[0],
                     "span_id": span_id,
                 }
-                frame_result = db_utils.images_collection.insert(data=[frame_data])
+                frame_result = db_utils.images_collection.insert(
+                    data=[frame_data]
+                )
                 db_utils.images_collection.flush()
                 frame_id = frame_result.primary_keys[0]
                 inserted_image_ids.append(frame_id)
@@ -315,13 +357,16 @@ def search_spans(
 
     Parameters:
         video_id (Optional[int]): Filter by video ID.
-        short_description (Optional[str]): Search by short description (vector search if provided).
-        long_description (Optional[str]): Search by long description (vector search if provided).
+        short_description (Optional[str]): Search by short description
+            (vector search if provided).
+        long_description (Optional[str]): Search by long description
+            (vector search if provided).
         keywords (Optional[list[str]]): Filter by keywords.
         uploaded_before (Optional[float]): Filter by upload time (before).
         uploaded_after (Optional[float]): Filter by upload time (after).
         limit (int): Maximum number of results to return. Defaults to 10.
-        skip (int): Number of rows to skip (only for non-vector search). Defaults to 0.
+        skip (int): Number of rows to skip (only for non-vector search).
+            Defaults to 0.
 
     Returns:
         list[Span]: List of Span objects matching the query.
@@ -405,6 +450,7 @@ def ingest_document(
     path: str,
     uploaded_by: str = "system",
     version: Optional[float] = None,
+    processor: Optional[DocumentProcessor] = None,
     throw_if_duplicate: bool = True,
 ) -> list[DocumentObject]:
     """
@@ -414,6 +460,8 @@ def ingest_document(
             'system'.
         version (Optional[float]): Version number (defaults to file
             modification time).
+        processor (Optional[DocumentProcessor]): Custom document processor
+            instance. Defaults to None.
         throw_if_duplicate (bool): If True, raises error if document with
             same hash exists. Defaults to True.
 
@@ -427,12 +475,11 @@ def ingest_document(
         if existing_doc:
             raise ValueError("this document already exists")
 
-    global _doc_processor
-    _doc_processor = _doc_processor or DocumentProcessor()
+    processor = processor or get_doc_processor()
     inserted_ids = []
 
     try:
-        doc_objects = _doc_processor.process(path)
+        doc_objects = processor.process(path)
 
         for doc_obj in doc_objects:
             if uploaded_by is not None:
@@ -452,7 +499,9 @@ def ingest_document(
                 "position": list(doc_obj.position),
                 "type": chunk_type_to_idx(doc_obj.type),
                 "content": doc_obj.content,
-                "content_vector": db_utils.embedder.embed([doc_obj.content])[0],
+                "content_vector": db_utils.embedder.embed([doc_obj.content])[
+                    0
+                ],
                 "keywords": doc_obj.keywords,
             }
             result = db_utils.doc_obj_collection.insert(data=[doc_data])
@@ -480,7 +529,8 @@ def search_document_objects(
     skip: int = 0,
 ) -> list[tuple[float | None, DocumentObject]]:
     """
-    Search for document objects in the database using metadata and/or vector search.
+    Search for document objects in the database using metadata and/or
+        vector search.
 
     Parameters:
         page (Optional[int]): Filter by page number.
@@ -488,7 +538,8 @@ def search_document_objects(
         keywords (Optional[list[str]]): Filter by keywords.
         content (Optional[str]): Search by content (vector search if provided).
         limit (int): Maximum number of results to return. Defaults to 10.
-        skip (int): Number of rows to skip (only for non-vector search). Defaults to 0.
+        skip (int): Number of rows to skip (only for non-vector search).
+            Defaults to 0.
 
     Returns:
         list[DocumentObject]: List of DocumentObject instances matching the query.
@@ -540,7 +591,11 @@ def search_document_objects(
                 DocumentObject(
                     **(
                         hit.entity["entity"]
-                        | {"type": idx_to_chunk_type(hit.entity["entity"]["type"])}
+                        | {
+                            "type": idx_to_chunk_type(
+                                hit.entity["entity"]["type"]
+                            )
+                        }
                     )
                 ),
             )
@@ -552,6 +607,9 @@ def search_document_objects(
             expr=expr, output_fields=output_fields, limit=limit, offset=skip
         )
         return [
-            (None, DocumentObject(**(r | {"type": idx_to_chunk_type(r["type"])})))
+            (
+                None,
+                DocumentObject(**(r | {"type": idx_to_chunk_type(r["type"])})),
+            )
             for r in results
         ]
