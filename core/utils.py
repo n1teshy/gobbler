@@ -1,10 +1,16 @@
 import hashlib
+import json
 import mimetypes
 import os
 import random
 import string
 import tempfile
+import time
 from typing import Optional
+
+import appdirs
+
+import core.meta as meta
 
 
 def temp_file(suffix: str, length: int = 10) -> str:
@@ -37,3 +43,25 @@ def get_file_metadata(path: str, URI: Optional[str] = None) -> dict:
         version=int(os.path.getmtime(path)),
         hash=hash_file(path),
     )
+
+
+def get_usage_file(usage_type: str) -> str:
+    # one file per day
+    today = int(time.time()) // 86400
+    dir = os.path.join(appdirs.user_data_dir(meta.name), usage_type)
+    if not os.path.exists(dir):
+        os.makedirs(dir, exist_ok=True)
+    return os.path.join(dir, f"{today}.json")
+
+
+def load_usage_data(file: str) -> dict:
+    if not os.path.exists(file):
+        with open(file, "w", encoding="utf-8") as f:
+            json.dump({}, f)
+    with open(file, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def dump_usage_data(data: dict, file: str) -> None:
+    with open(file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)

@@ -1,6 +1,8 @@
 from openai import AzureOpenAI
 
+import core.constants as c
 import core.cred as cred
+from core.utils import dump_usage_data, get_usage_file, load_usage_data
 
 
 class AzureEmbedder:
@@ -13,9 +15,18 @@ class AzureEmbedder:
             azure_deployment=cred.AZURE_EMB_DEPLOYMENT,
             api_version=cred.AZURE_EMB_VERSION,
         )
+        self.usage_file = get_usage_file(c.USAGE_AOAI_EMBEDDING)
+        self.usage_data = load_usage_data(self.usage_file)
+        self.usage_data[cred.AZURE_EMB_MODEL] = self.usage_data.get(
+            cred.AZURE_EMB_MODEL, {c.FLD_USAGE_PROMPT: 0}
+        )
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         response = self.client.embeddings.create(
             model=cred.AZURE_EMB_MODEL, input=texts
         )
+        self.usage_data[cred.AZURE_EMB_MODEL][c.FLD_USAGE_PROMPT] += (
+            response.usage.prompt_tokens
+        )
+        dump_usage_data(self.usage_data, self.usage_file)
         return [x.embedding for x in response.data]

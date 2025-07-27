@@ -19,7 +19,12 @@ from core.processors.image.utils import (
     sys_msg_dsc_entities,
 )
 from core.processors.interfaces import BaseProcessor
-from core.utils import get_file_metadata
+from core.utils import (
+    dump_usage_data,
+    get_file_metadata,
+    get_usage_file,
+    load_usage_data,
+)
 
 
 class ImageProcessor(BaseProcessor):
@@ -33,6 +38,11 @@ class ImageProcessor(BaseProcessor):
             api_version=cred.AZURE_VLM_VERSION,
         )
         self.scene_to_desc = scene_to_desc or {}
+        self.usage_file = get_usage_file(c.USAGE_AOAI_OCR)
+        self.usage_data = load_usage_data(self.usage_file)
+        self.usage_data[cred.AZURE_VLM_MODEL] = self.usage_data.get(
+            cred.AZURE_VLM_MODEL, {c.FLD_USAGE_PROMPT: 0, c.FLD_USAGE_COMPLETION: 0}
+        )
 
     def classify(self, path: str) -> Optional[SceneType]:
         scene, prob = classify_images([path])[0][0]
@@ -84,6 +94,13 @@ class ImageProcessor(BaseProcessor):
                 response_format={"type": "json_object"},
                 temperature=0.5,
             )
+            self.usage_data[cred.AZURE_VLM_MODEL][c.FLD_USAGE_PROMPT] += (
+                response.usage.prompt_tokens
+            )
+            self.usage_data[cred.AZURE_VLM_MODEL][c.FLD_USAGE_COMPLETION] += (
+                response.usage.completion_tokens
+            )
+            dump_usage_data(self.usage_data, self.usage_file)
 
             data = json.loads(response.choices[0].message.content)
             if type(data) is dict and "description" in data and "keywords" in data:

@@ -19,3 +19,14 @@ LLM_ROLE_USER = "user"
 
 LLM_CONTENT_TYPE_TEXT = "text"
 LLM_CONTENT_TYPE_IMAGE_URL = "image_url"
+
+# --- lib constants ---
+USAGE_AOAI_EMBEDDING = "aoai_embedding"
+USAGE_AOAI_TRANSCRIPTION = "aoai_transcription"
+USAGE_AOAI_COMPLETION = "aoai_completion"
+USAGE_AOAI_OCR = "aoai_ocr"
+USAGE_LAI_OCR = "lai_ocr"
+
+FLD_MODEL = "model"
+FLD_USAGE_PROMPT = "prompt_tokens"
+FLD_USAGE_COMPLETION = "completion_tokens"

@@ -24,7 +24,13 @@ from core.processors.video.utils import (
     get_ssim_score,
     topic_sys_msg,
 )
-from core.utils import get_file_metadata, temp_file
+from core.utils import (
+    dump_usage_data,
+    get_file_metadata,
+    get_usage_file,
+    load_usage_data,
+    temp_file,
+)
 
 
 class VideoProcessor(BaseProcessor):
@@ -60,6 +66,17 @@ class VideoProcessor(BaseProcessor):
         if shutil.which("ffmpeg") is None:
             raise EnvironmentError("ffmpeg is not installed or not found in PATH")
 
+        self.compl_usage_file = get_usage_file(c.USAGE_AOAI_COMPLETION)
+        self.compl_usage_data = load_usage_data(self.compl_usage_file)
+        self.txpn_usage_file = get_usage_file(c.USAGE_AOAI_TRANSCRIPTION)
+        self.txpn_usage_data = load_usage_data(self.txpn_usage_file)
+        self.compl_usage_data[cred.AZURE_LLM_MODEL] = self.compl_usage_data.get(
+            cred.AZURE_LLM_MODEL, {c.FLD_USAGE_PROMPT: 0, c.FLD_USAGE_COMPLETION: 0}
+        )
+        self.txpn_usage_data[cred.AZURE_WHISPER_MODEL] = self.txpn_usage_data.get(
+            cred.AZURE_WHISPER_MODEL, {"seconds": 0}
+        )
+
     def remove_duplicates_frames(self, files: list[str], show_progress: bool):
         idx = 1
         last_uniq = files[0]
@@ -72,8 +89,9 @@ class VideoProcessor(BaseProcessor):
                 os.remove(files[idx])
                 idx += 1
             if show_progress:
-                logger.info(
-                    f"--- frame de-duplication: {min((idx + 1) / len(files) * 100, 100):.2f}% ---"
+                print(
+                    f"--- frame de-duplication: {min((idx + 1) / len(files) * 100, 100):.2f}% ---",
+                    end="\r",
                 )
             if idx >= len(files):
                 break
@@ -108,8 +126,9 @@ class VideoProcessor(BaseProcessor):
                         files.append(file)
 
                 if show_progress:
-                    logger.info(
-                        f"--- frame extraction: {((index + 1) / no_frames * 100):.2f}% ---"
+                    print(
+                        f"--- frame extraction: {((index + 1) / no_frames * 100):.2f}% ---",
+                        end="\r",
                     )
                 prev_gray = gray
 
@@ -177,6 +196,13 @@ class VideoProcessor(BaseProcessor):
                 ],
                 response_format={c.LLM_FLD_TYPE: "json_object"},
             )
+            self.compl_usage_data[cred.AZURE_LLM_MODEL][c.FLD_USAGE_PROMPT] += (
+                response.usage.prompt_tokens
+            )
+            self.compl_usage_data[cred.AZURE_LLM_MODEL][c.FLD_USAGE_COMPLETION] += (
+                response.usage.completion_tokens
+            )
+            dump_usage_data(self.compl_usage_data, self.compl_usage_file)
             data = json.loads(response.choices[0].message.content)
 
             if isinstance(data, list):
@@ -271,12 +297,16 @@ class VideoProcessor(BaseProcessor):
 
         if show_progress:
             logger.info(f"--- transcribing ---")
+        frames, frame_time_ranges, dur = self.extract_frames(path, show_progress)
         txpn_segments = self.transcribe(path)
+        self.txpn_usage_data[cred.AZURE_WHISPER_MODEL]["seconds"] += dur
+        dump_usage_data(self.txpn_usage_data, self.txpn_usage_file)
         topic_time_ranges = self.get_topics(txpn_segments)
+
         if topic_time_ranges is None:
             raise RuntimeError("Failed to get topics")
+
         span_dicts = self.get_spans(topic_time_ranges, txpn_segments)
-        frames, frame_time_ranges, dur = self.extract_frames(path, show_progress)
         metadata = get_file_metadata(path)
         if not metadata["mime_type"].startswith("video/"):
             raise ValueError(f"Doesn't seem to be a video {path}")

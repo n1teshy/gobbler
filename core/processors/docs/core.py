@@ -5,12 +5,18 @@ import fitz
 from agentic_doc.parse import parse
 from keybert import KeyBERT
 
+import core.constants as c
 import core.cred as cred
 from core.logger import logger
 from core.processors.docs.models import DocumentObject, Position
 from core.processors.docs.utils import office_to_pdf
 from core.processors.interfaces import BaseProcessor
-from core.utils import get_file_metadata
+from core.utils import (
+    dump_usage_data,
+    get_file_metadata,
+    get_usage_file,
+    load_usage_data,
+)
 
 
 class DocumentProcessor(BaseProcessor):
@@ -22,6 +28,9 @@ class DocumentProcessor(BaseProcessor):
             warnings.warn(
                 "OFFICE_CONVERSION_URL is not set, you'll have a hard time with non-PDF files"
             )
+        self.usage_file = get_usage_file(c.USAGE_LAI_OCR)
+        self.usage_data = load_usage_data(self.usage_file)
+        self.usage_data["pages"] = self.usage_data.get("pages", 0)
 
     def process(self, path: str) -> list[DocumentObject]:
         metadata = get_file_metadata(path)
@@ -56,6 +65,8 @@ class DocumentProcessor(BaseProcessor):
                             ),
                         )
                     )
+                self.usage_data["pages"] += 1
+                dump_usage_data(self.usage_data, self.usage_file)
             return doc_objects
         finally:
             try:
