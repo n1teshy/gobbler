@@ -47,7 +47,9 @@ def convert_to_pdf(input_bytes: bytes, input_filename: str) -> bytes:
         else:
             logger.error(f"PDF not generated for {input_filename}")
     except CalledProcessError as e:
-        logger.error(f"LibreOffice conversion error: {e}, stderr: {e.stderr.decode()}")
+        logger.error(
+            f"LibreOffice conversion error: {e}, stderr: {e.stderr.decode()}"
+        )
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
     finally:
@@ -56,6 +58,11 @@ def convert_to_pdf(input_bytes: bytes, input_filename: str) -> bytes:
         if pdf_path.exists():
             pdf_path.unlink(missing_ok=True)
     return pdf_bytes
+
+
+@app.get("/ping")
+def ping() -> Response:
+    return Response("pong", status_code=200)
 
 
 @app.post("/convert")

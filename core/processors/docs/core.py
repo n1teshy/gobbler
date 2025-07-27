@@ -1,7 +1,9 @@
 import os
 import warnings
+from urllib.parse import urljoin
 
 import fitz
+import requests
 from agentic_doc.parse import parse
 from keybert import KeyBERT
 
@@ -23,10 +25,16 @@ class DocumentProcessor(BaseProcessor):
     def __init__(self):
         if cred.LANDINGAI_KEY is None:
             raise EnvironmentError("LandingAI key is missing")
-        if cred.OFFICE_CONVERSION_URL is None:
+        if cred.OFFICE_CONVERSION_SERVER is None:
             warnings.warn(
                 "OFFICE_CONVERSION_URL is not set, you'll have a hard time with non-PDF files"
             )
+
+        try:
+            url = urljoin(cred.OFFICE_CONVERSION_SERVER, "/ping")
+            assert requests.get(url).status_code == 200
+        except Exception as e:
+            logger.error(f"Office conversion server is not reachable: {e}")
 
         self.keybert = KeyBERT("bert-base-nli-mean-tokens")
         self.usage_file = get_usage_file(c.USAGE_LAI_OCR)

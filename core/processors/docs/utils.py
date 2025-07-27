@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import urljoin
 
 import requests
 from agentic_doc.common import ChunkType
@@ -14,6 +15,9 @@ idx_2_chunk_type = [
     ChunkType.marginalia,
 ]
 chunk_type_2_idx = {typ: idx for idx, typ in enumerate(idx_2_chunk_type)}
+conversion_endpoint = cred.OFFICE_CONVERSION_SERVER and urljoin(
+    cred.OFFICE_CONVERSION_SERVER, "/convert"
+)
 
 
 def idx_to_chunk_type(idx: int) -> ChunkType:
@@ -32,11 +36,15 @@ def office_to_pdf(document_path: str) -> str:
     temp_pdf_path = temp_file(".pdf")
     with open(document_path, "rb") as f:
         files = {
-            "file": (os.path.basename(document_path), f, "application/octet-stream")
+            "file": (
+                os.path.basename(document_path),
+                f,
+                "application/octet-stream",
+            )
         }
-        if cred.OFFICE_CONVERSION_URL is None:
+        if not conversion_endpoint:
             raise EnvironmentError("OFFICE_CONVERSION_URL is missing ")
-        response = requests.post(cred.OFFICE_CONVERSION_URL, files=files)
+        response = requests.post(conversion_endpoint, files=files)
         if response.status_code != 200:
             raise RuntimeError(f"Conversion failed: {response.text}")
         with open(temp_pdf_path, "wb") as pdf_out:
