@@ -343,7 +343,6 @@ class VideoProcessor(BaseProcessor):
                 Span(
                     **metadata,
                     **span_kwargs,
-                    duration=dur,
                 )
             )
 

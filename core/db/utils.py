@@ -69,7 +69,6 @@ def init():
             ),
             FieldSchema(name=c.SPAN_FLD_START, dtype=DataType.FLOAT),
             FieldSchema(name=c.SPAN_FLD_END, dtype=DataType.FLOAT),
-            FieldSchema(name="duration", dtype=DataType.FLOAT),
             FieldSchema(
                 name=c.SPAN_FLD_SHORT_DESCRIPTION,
                 dtype=DataType.VARCHAR,

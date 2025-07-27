@@ -7,7 +7,6 @@ from core.processors.interfaces import BaseFile, DBEntity
 
 
 class Span(DBEntity, BaseFile):
-    duration: float
     start: float
     end: float
     short_description: str
