@@ -4,6 +4,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+import core.constants as c
+
 
 class BaseProcessor(ABC):
     type: str
@@ -25,17 +27,19 @@ class BaseFile(BaseModel):
     mime_type: str
     size: int
     uploaded_by: str = "system"
-    uploaded_at: int = Field(default_factory=lambda: int(datetime.now().timestamp()))
+    uploaded_at: int = Field(
+        default_factory=lambda: int(datetime.now().timestamp())
+    )
     version: int
     hash: str
 
     def to_json(self) -> dict:
         return {
-            "URI": self.URI,
-            "mime_type": self.mime_type,
-            "size": self.size,
-            "uploaded_by": self.uploaded_by,
-            "uploaded_at": self.uploaded_at,
-            "version": self.version,
-            "hash": self.hash,
+            c.DB_FLD_URI: self.URI,
+            c.DB_FLD_MIME_TYPE: self.mime_type,
+            c.DB_FLD_SIZE: self.size,
+            c.DB_FLD_UPLOADED_BY: self.uploaded_by,
+            c.DB_FLD_UPLOADED_AT: self.uploaded_at,
+            c.DB_FLD_VERSION: self.version,
+            c.DB_FLD_HASH: self.hash,
         }

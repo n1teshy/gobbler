@@ -2,6 +2,7 @@ from typing import Optional
 
 from agentic_doc.common import ChunkType
 
+import core.constants as c
 import core.db.utils as db_utils
 from core.processors.docs.core import DocumentProcessor
 from core.processors.docs.models import DocumentObject
@@ -79,7 +80,9 @@ def ingest_image(
     """
     if throw_if_duplicate:
         existing_image = db_utils.images_collection.query(
-            expr=f'hash == "{hash_file(path)}"', output_fields=["id"], limit=1
+            expr=f'{c.DB_FLD_HASH} == "{hash_file(path)}"',
+            output_fields=[c.DB_FLD_ID],
+            limit=1,
         )
         if existing_image:
             raise ValueError("this image already exists")
@@ -95,25 +98,25 @@ def ingest_image(
 
     try:
         image_data = {
-            "URI": processed_image.URI,
-            "mime_type": processed_image.mime_type,
-            "size": processed_image.size,
-            "uploaded_by": processed_image.uploaded_by,
-            "uploaded_at": processed_image.uploaded_at,
-            "version": processed_image.version,
-            "hash": processed_image.hash,
-            "shape": processed_image.shape,
-            "scene": (
+            c.DB_FLD_URI: processed_image.URI,
+            c.DB_FLD_MIME_TYPE: processed_image.mime_type,
+            c.DB_FLD_SIZE: processed_image.size,
+            c.DB_FLD_UPLOADED_BY: processed_image.uploaded_by,
+            c.DB_FLD_UPLOADED_AT: processed_image.uploaded_at,
+            c.DB_FLD_VERSION: processed_image.version,
+            c.DB_FLD_HASH: processed_image.hash,
+            c.IMG_FLD_SHAPE: processed_image.shape,
+            c.IMG_FLD_SCENE: (
                 scene_type_to_idx(processed_image.scene)
                 if processed_image.scene
                 else None
             ),
-            "description": processed_image.description,
-            "keywords": processed_image.keywords,
-            "description_vector": db_utils.embedder.embed(
+            c.IMG_FLD_DESCRIPTION: processed_image.description,
+            c.DB_FLD_KEYWORDS: processed_image.keywords,
+            c.IMG_FLD_DESCRIPTION_VECTOR: db_utils.embedder.embed(
                 [processed_image.description]
             )[0],
-            "span_id": span_id,
+            c.IMG_FLD_SPAN_ID: span_id,
         }
         result = db_utils.images_collection.insert(data=[image_data])
         db_utils.images_collection.flush()
@@ -161,41 +164,41 @@ def search_images(
         raise ValueError("row-skipping is not supported for vector search")
 
     output_fields = [
-        "id",
-        "URI",
-        "mime_type",
-        "size",
-        "uploaded_by",
-        "uploaded_at",
-        "version",
-        "hash",
-        "shape",
-        "scene",
-        "description",
-        "keywords",
-        "span_id",
+        c.DB_FLD_ID,
+        c.DB_FLD_URI,
+        c.DB_FLD_MIME_TYPE,
+        c.DB_FLD_SIZE,
+        c.DB_FLD_UPLOADED_BY,
+        c.DB_FLD_UPLOADED_AT,
+        c.DB_FLD_VERSION,
+        c.DB_FLD_HASH,
+        c.IMG_FLD_SHAPE,
+        c.IMG_FLD_SCENE,
+        c.IMG_FLD_DESCRIPTION,
+        c.DB_FLD_KEYWORDS,
+        c.IMG_FLD_SPAN_ID,
     ]
 
     exprs = []
     images = []
 
     if mime_type:
-        exprs.append(f'mime_type == "{mime_type}"')
+        exprs.append(f'{c.DB_FLD_MIME_TYPE} == "{mime_type}"')
     if uploaded_by:
-        exprs.append(f'uploaded_by == "{uploaded_by}"')
+        exprs.append(f'{c.DB_FLD_UPLOADED_BY} == "{uploaded_by}"')
     if hash:
-        exprs.append(f'hash == "{hash}"')
+        exprs.append(f'{c.DB_FLD_HASH} == "{hash}"')
     if scene is not None:
-        exprs.append(f"scene == {scene_type_to_idx(scene)}")
+        exprs.append(f"{c.IMG_FLD_SCENE} == {scene_type_to_idx(scene)}")
     if span_id is not None:
-        exprs.append(f"span_id == {span_id}")
+        exprs.append(f"{c.IMG_FLD_SPAN_ID} == {span_id}")
     if uploaded_before is not None:
-        exprs.append(f"uploaded_at < {uploaded_before}")
+        exprs.append(f"{c.DB_FLD_UPLOADED_AT} < {uploaded_before}")
     if uploaded_after is not None:
-        exprs.append(f"uploaded_at > {uploaded_after}")
+        exprs.append(f"{c.DB_FLD_UPLOADED_AT} > {uploaded_after}")
     if keywords:
         for kw in keywords:
-            exprs.append(f'JSON_CONTAINS(keywords, "{kw}")')
+            exprs.append(f'JSON_CONTAINS({c.DB_FLD_KEYWORDS}, "{kw}")')
     expr = " and ".join(exprs) if exprs else ""
 
     if query is not None:
@@ -203,7 +206,7 @@ def search_images(
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.images_collection.search(
             data=[vector],
-            anns_field="description_vector",
+            anns_field=c.IMG_FLD_DESCRIPTION_VECTOR,
             param=search_params,
             limit=limit,
             expr=expr or None,
@@ -214,16 +217,18 @@ def search_images(
             if "entity" not in hit.entity:
                 continue
             hit_data = hit.entity["entity"]
-            if hit_data["scene"] is not None:
-                hit_data["scene"] = idx_to_scene_type(hit_data["scene"])
+            if hit_data[c.IMG_FLD_SCENE] is not None:
+                hit_data[c.IMG_FLD_SCENE] = idx_to_scene_type(
+                    hit_data[c.IMG_FLD_SCENE]
+                )
             images.append((hit.distance, Image(**hit_data)))
     else:
         hits = db_utils.images_collection.query(
             expr=expr, output_fields=output_fields, limit=limit, offset=skip
         )
         for hit in hits:
-            if hit["scene"] is not None:
-                hit["scene"] = idx_to_scene_type(hit["scene"])
+            if hit[c.IMG_FLD_SCENE] is not None:
+                hit[c.IMG_FLD_SCENE] = idx_to_scene_type(hit[c.IMG_FLD_SCENE])
             images.append((None, Image(**hit)))
 
     return images
@@ -258,7 +263,9 @@ def ingest_video(
     """
     if throw_if_duplicate:
         existing_image = db_utils.spans_collection.query(
-            expr=f'hash == "{hash_file(path)}"', output_fields=["id"], limit=1
+            expr=f'{c.DB_FLD_HASH} == "{hash_file(path)}"',
+            output_fields=[c.DB_FLD_ID],
+            limit=1,
         )
         if existing_image:
             raise ValueError("this video already exists")
@@ -275,23 +282,23 @@ def ingest_video(
             if version is not None:
                 span.version = version
             span_data = {
-                "URI": span.URI,
-                "mime_type": span.mime_type,
-                "size": span.size,
-                "uploaded_by": span.uploaded_by,
-                "uploaded_at": span.uploaded_at,
-                "version": span.version,
-                "hash": span.hash,
-                "start": span.start,
-                "end": span.end,
+                c.DB_FLD_URI: span.URI,
+                c.DB_FLD_MIME_TYPE: span.mime_type,
+                c.DB_FLD_SIZE: span.size,
+                c.DB_FLD_UPLOADED_BY: span.uploaded_by,
+                c.DB_FLD_UPLOADED_AT: span.uploaded_at,
+                c.DB_FLD_VERSION: span.version,
+                c.DB_FLD_HASH: span.hash,
+                c.SPAN_FLD_START: span.start,
+                c.SPAN_FLD_END: span.end,
                 "duration": span.end - span.start,
-                "short_description": span.short_description,
-                "long_description": span.long_description,
-                "keywords": span.keywords,
-                "short_description_vector": db_utils.embedder.embed(
+                c.SPAN_FLD_SHORT_DESCRIPTION: span.short_description,
+                c.SPAN_FLD_LONG_DESCRIPTION: span.long_description,
+                c.DB_FLD_KEYWORDS: span.keywords,
+                c.SPAN_FLD_SHORT_DESCRIPTION_VECTOR: db_utils.embedder.embed(
                     [span.short_description]
                 )[0],
-                "long_description_vector": db_utils.embedder.embed(
+                c.SPAN_FLD_LONG_DESCRIPTION_VECTOR: db_utils.embedder.embed(
                     [span.long_description]
                 )[0],
             }
@@ -303,21 +310,23 @@ def ingest_video(
 
             for frame in span.frames:
                 frame_data = {
-                    "URI": frame.URI,
-                    "mime_type": frame.mime_type,
-                    "size": frame.size,
-                    "uploaded_by": frame.uploaded_by,
-                    "uploaded_at": frame.uploaded_at,
-                    "version": frame.version,
-                    "hash": frame.hash,
-                    "shape": frame.shape,
-                    "scene": frame.scene.value if frame.scene else None,
-                    "description": frame.description,
-                    "keywords": frame.keywords,
-                    "description_vector": db_utils.embedder.embed(
+                    c.DB_FLD_URI: frame.URI,
+                    c.DB_FLD_MIME_TYPE: frame.mime_type,
+                    c.DB_FLD_SIZE: frame.size,
+                    c.DB_FLD_UPLOADED_BY: frame.uploaded_by,
+                    c.DB_FLD_UPLOADED_AT: frame.uploaded_at,
+                    c.DB_FLD_VERSION: frame.version,
+                    c.DB_FLD_HASH: frame.hash,
+                    c.IMG_FLD_SHAPE: frame.shape,
+                    c.IMG_FLD_SCENE: (
+                        frame.scene.value if frame.scene else None
+                    ),
+                    c.IMG_FLD_DESCRIPTION: frame.description,
+                    c.DB_FLD_KEYWORDS: frame.keywords,
+                    c.IMG_FLD_DESCRIPTION_VECTOR: db_utils.embedder.embed(
                         [frame.description]
                     )[0],
-                    "span_id": span_id,
+                    c.IMG_FLD_SPAN_ID: span_id,
                 }
                 frame_result = db_utils.images_collection.insert(
                     data=[frame_data]
@@ -329,13 +338,17 @@ def ingest_video(
     except Exception as e:
         for image_id in inserted_image_ids:
             try:
-                db_utils.images_collection.delete(expr=f"id == {image_id}")
+                db_utils.images_collection.delete(
+                    expr=f"{c.DB_FLD_ID} == {image_id}"
+                )
                 db_utils.images_collection.flush()
             except Exception:
                 pass
         for span_id in inserted_span_ids:
             try:
-                db_utils.spans_collection.delete(expr=f"id == {span_id}")
+                db_utils.spans_collection.delete(
+                    expr=f"{c.DB_FLD_ID} == {span_id}"
+                )
                 db_utils.spans_collection.flush()
             except Exception:
                 pass
@@ -345,7 +358,6 @@ def ingest_video(
 def search_spans(
     short_query: Optional[str] = None,
     long_query: Optional[str] = None,
-    video_id: Optional[int] = None,
     keywords: Optional[list[str]] = None,
     uploaded_before: Optional[float] = None,
     uploaded_after: Optional[float] = None,
@@ -356,7 +368,6 @@ def search_spans(
     Search for video spans in the database using metadata and/or vector search.
 
     Parameters:
-        video_id (Optional[int]): Filter by video ID.
         short_description (Optional[str]): Search by short description
             (vector search if provided).
         long_description (Optional[str]): Search by long description
@@ -375,39 +386,37 @@ def search_spans(
         raise ValueError("row-skipping is not supported for vector search")
 
     output_fields = [
-        "id",
-        "URI",
-        "mime_type",
-        "size",
-        "uploaded_by",
-        "uploaded_at",
-        "version",
-        "hash",
-        "start",
-        "end",
+        c.DB_FLD_ID,
+        c.DB_FLD_URI,
+        c.DB_FLD_MIME_TYPE,
+        c.DB_FLD_SIZE,
+        c.DB_FLD_UPLOADED_BY,
+        c.DB_FLD_UPLOADED_AT,
+        c.DB_FLD_VERSION,
+        c.DB_FLD_HASH,
+        c.SPAN_FLD_START,
+        c.SPAN_FLD_END,
         "duration",
-        "short_description",
-        "long_description",
-        "keywords",
+        c.SPAN_FLD_SHORT_DESCRIPTION,
+        c.SPAN_FLD_LONG_DESCRIPTION,
+        c.DB_FLD_KEYWORDS,
     ]
 
     exprs = []
-    if video_id is not None:
-        exprs.append(f"video_id == {video_id}")
     if keywords:
         for kw in keywords:
-            exprs.append(f'JSON_CONTAINS(keywords, "{kw}")')
+            exprs.append(f'JSON_CONTAINS({c.DB_FLD_KEYWORDS}, "{kw}")')
     if uploaded_before is not None:
-        exprs.append(f"uploaded_at < {uploaded_before}")
+        exprs.append(f"{c.DB_FLD_UPLOADED_AT} < {uploaded_before}")
     if uploaded_after is not None:
-        exprs.append(f"uploaded_at > {uploaded_after}")
+        exprs.append(f"{c.DB_FLD_UPLOADED_AT} > {uploaded_after}")
     expr = " and ".join(exprs) if exprs else ""
     if short_query is not None:
         vector = db_utils.embedder.embed([short_query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.spans_collection.search(
             data=[vector],
-            anns_field="short_description_vector",
+            anns_field=c.SPAN_FLD_SHORT_DESCRIPTION_VECTOR,
             param=search_params,
             limit=limit,
             expr=expr or None,
@@ -424,7 +433,7 @@ def search_spans(
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.spans_collection.search(
             data=[vector],
-            anns_field="long_description_vector",
+            anns_field=c.SPAN_FLD_LONG_DESCRIPTION_VECTOR,
             param=search_params,
             limit=limit,
             expr=expr or None,
@@ -470,7 +479,9 @@ def ingest_document(
     """
     if throw_if_duplicate:
         existing_doc = db_utils.doc_obj_collection.query(
-            expr=f'hash == "{hash_file(path)}"', output_fields=["id"], limit=1
+            expr=f'{c.DB_FLD_HASH} == "{hash_file(path)}"',
+            output_fields=[c.DB_FLD_ID],
+            limit=1,
         )
         if existing_doc:
             raise ValueError("this document already exists")
@@ -488,21 +499,21 @@ def ingest_document(
                 doc_obj.version = version
 
             doc_data = {
-                "URI": doc_obj.URI,
-                "mime_type": doc_obj.mime_type,
-                "size": doc_obj.size,
-                "uploaded_by": doc_obj.uploaded_by,
-                "uploaded_at": doc_obj.uploaded_at,
-                "version": doc_obj.version,
-                "hash": doc_obj.hash,
-                "page": doc_obj.page,
-                "position": list(doc_obj.position),
-                "type": chunk_type_to_idx(doc_obj.type),
-                "content": doc_obj.content,
-                "content_vector": db_utils.embedder.embed([doc_obj.content])[
-                    0
-                ],
-                "keywords": doc_obj.keywords,
+                c.DB_FLD_URI: doc_obj.URI,
+                c.DB_FLD_MIME_TYPE: doc_obj.mime_type,
+                c.DB_FLD_SIZE: doc_obj.size,
+                c.DB_FLD_UPLOADED_BY: doc_obj.uploaded_by,
+                c.DB_FLD_UPLOADED_AT: doc_obj.uploaded_at,
+                c.DB_FLD_VERSION: doc_obj.version,
+                c.DB_FLD_HASH: doc_obj.hash,
+                c.DOC_FLD_PAGE: doc_obj.page,
+                c.DOC_FLD_POSITION: list(doc_obj.position),
+                c.DOC_FLD_TYPE: chunk_type_to_idx(doc_obj.type),
+                c.DOC_FLD_CONTENT: doc_obj.content,
+                c.DOC_FLD_CONTENT_VECTOR: db_utils.embedder.embed(
+                    [doc_obj.content]
+                )[0],
+                c.DB_FLD_KEYWORDS: doc_obj.keywords,
             }
             result = db_utils.doc_obj_collection.insert(data=[doc_data])
             db_utils.doc_obj_collection.flush()
@@ -513,7 +524,9 @@ def ingest_document(
     except Exception as e:
         for doc_obj_id in inserted_ids:
             try:
-                db_utils.images_collection.delete(expr=f"id == {doc_obj_id}")
+                db_utils.images_collection.delete(
+                    expr=f"{c.DB_FLD_ID} == {doc_obj_id}"
+                )
                 db_utils.images_collection.flush()
             except Exception:
                 pass
@@ -548,29 +561,29 @@ def search_document_objects(
         raise ValueError("row-skipping is not supported for vector search")
 
     output_fields = [
-        "id",
-        "URI",
-        "mime_type",
-        "size",
-        "uploaded_by",
-        "uploaded_at",
-        "version",
-        "hash",
-        "page",
-        "position",
-        "type",
-        "content",
-        "keywords",
+        c.DB_FLD_ID,
+        c.DB_FLD_URI,
+        c.DB_FLD_MIME_TYPE,
+        c.DB_FLD_SIZE,
+        c.DB_FLD_UPLOADED_BY,
+        c.DB_FLD_UPLOADED_AT,
+        c.DB_FLD_VERSION,
+        c.DB_FLD_HASH,
+        c.DOC_FLD_PAGE,
+        c.DOC_FLD_POSITION,
+        c.DOC_FLD_TYPE,
+        c.DOC_FLD_CONTENT,
+        c.DB_FLD_KEYWORDS,
     ]
 
     exprs = []
     if page is not None:
-        exprs.append(f"page == {page}")
+        exprs.append(f"{c.DOC_FLD_PAGE} == {page}")
     if type is not None:
-        exprs.append(f"type == {chunk_type_to_idx(type)}")
+        exprs.append(f"{c.DOC_FLD_TYPE} == {chunk_type_to_idx(type)}")
     if keywords:
         for kw in keywords:
-            exprs.append(f'JSON_CONTAINS(keywords, "{kw}")')
+            exprs.append(f'JSON_CONTAINS({c.DB_FLD_KEYWORDS}, "{kw}")')
 
     expr = " and ".join(exprs) if exprs else ""
     if query is not None:
@@ -578,7 +591,7 @@ def search_document_objects(
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.doc_obj_collection.search(
             data=[vector],
-            anns_field="content_vector",
+            anns_field=c.DOC_FLD_CONTENT_VECTOR,
             param=search_params,
             limit=limit,
             expr=expr or None,
@@ -592,8 +605,8 @@ def search_document_objects(
                     **(
                         hit.entity["entity"]
                         | {
-                            "type": idx_to_chunk_type(
-                                hit.entity["entity"]["type"]
+                            c.DOC_FLD_TYPE: idx_to_chunk_type(
+                                hit.entity["entity"][c.DOC_FLD_TYPE]
                             )
                         }
                     )
@@ -609,7 +622,16 @@ def search_document_objects(
         return [
             (
                 None,
-                DocumentObject(**(r | {"type": idx_to_chunk_type(r["type"])})),
+                DocumentObject(
+                    **(
+                        r
+                        | {
+                            c.DOC_FLD_TYPE: idx_to_chunk_type(
+                                r[c.DOC_FLD_TYPE]
+                            )
+                        }
+                    )
+                ),
             )
             for r in results
         ]
