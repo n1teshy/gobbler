@@ -52,8 +52,17 @@ class ImageProcessor(BaseProcessor):
         )
 
     def classify(self, path: str) -> Optional[SceneType]:
-        scene, prob = classify_images([path])[0][0]
-        return scene if prob >= glb.clip_prob_thresh else None
+        scene_probs = classify_images([path])[0]
+        top_scene, top_prob = scene_probs[0][0]
+        if top_prob >= glb.clip_prob_thresh:
+            return top_scene
+        scene_probs = {scene: prob for scene, prob in scene_probs}
+        conf_prob = scene_probs[SceneType.VIDEO_CONFERENCE]
+        if scene_probs[SceneType.DIAGRAM] + conf_prob >= glb.clip_prob_thresh:
+            return SceneType.DIAGRAM
+        if scene_probs[SceneType.TEXT] + conf_prob >= glb.clip_prob_thresh:
+            return SceneType.TEXT
+        return None
 
     def describe(
         self,
