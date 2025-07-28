@@ -1,5 +1,5 @@
 import os
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from agentic_doc.common import ChunkType
 
@@ -141,7 +141,7 @@ def ingest_image(
 
 
 def search_images(
-    query: Optional[str] = None,
+    query: Optional[Union[str, list[float]]] = None,
     mime_type: Optional[str] = None,
     uploaded_by: Optional[str] = None,
     scene: Optional[SceneType] = None,
@@ -157,7 +157,7 @@ def search_images(
     Search for images in the database using metadata and/or vector search.
 
     Parameters:
-        mime_type (Optional[str]): Filter by MIME type.
+        mime_type (Optional[str | list[float]]): Filter by MIME type.
         uploaded_by (Optional[str]): Filter by uploader.
         description (Optional[str]): Search by description (vector search if
             provided).
@@ -219,10 +219,15 @@ def search_images(
     expr = " and ".join(exprs) if exprs else ""
 
     if query is not None:
-        vector = db_utils.embedder.embed([query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.images_collection.search(
-            data=[vector],
+            data=[
+                (
+                    db_utils.embedder.embed([query])[0]
+                    if type(query) is str
+                    else query
+                )
+            ],
             anns_field=c.IMG_FLD_DESCRIPTION_VECTOR,
             param=search_params,
             limit=limit,
@@ -396,8 +401,8 @@ def ingest_video(
 
 
 def search_spans(
-    short_query: Optional[str] = None,
-    long_query: Optional[str] = None,
+    short_query: Optional[Union[str, list[float]]] = None,
+    long_query: Optional[Union[str, list[float]]] = None,
     mime_type: Optional[str] = None,
     keywords: Optional[list[str]] = None,
     uploaded_before: Optional[int] = None,
@@ -410,9 +415,9 @@ def search_spans(
     Search for video spans in the database using metadata and/or vector search.
 
     Parameters:
-        short_query (Optional[str]): Search by short description
+        short_query (Optional[str | list[float]]): Search by short description
             (vector search if provided).
-        long_query (Optional[str]): Search by long description
+        long_query (Optional[str | list[float]]): Search by long description
             (vector search if provided).
         mime_type (Optional[str]): Filter by MIME type.
         keywords (Optional[list[str]]): Filter by keywords.
@@ -464,10 +469,15 @@ def search_spans(
     expr = " and ".join(exprs) if exprs else ""
 
     if short_query is not None:
-        vector = db_utils.embedder.embed([short_query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.spans_collection.search(
-            data=[vector],
+            data=[
+                (
+                    db_utils.embedder.embed([short_query])[0]
+                    if type(short_query) is str
+                    else short_query
+                )
+            ],
             anns_field=c.SPAN_FLD_SHORT_DESCRIPTION_VECTOR,
             param=search_params,
             limit=limit,
@@ -481,10 +491,15 @@ def search_spans(
             if "entity" in hit.entity
         ]
     elif long_query is not None:
-        vector = db_utils.embedder.embed([long_query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.spans_collection.search(
-            data=[vector],
+            data=[
+                (
+                    db_utils.embedder.embed([long_query])[0]
+                    if type(long_query) is str
+                    else long_query
+                )
+            ],
             anns_field=c.SPAN_FLD_LONG_DESCRIPTION_VECTOR,
             param=search_params,
             limit=limit,
@@ -610,7 +625,7 @@ def search_document_objects(
     query: Optional[str] = None,
     mime_type: Optional[str] = None,
     page: Optional[int] = None,
-    type: Optional[ChunkType] = None,
+    chunk_type: Optional[ChunkType] = None,
     keywords: Optional[list[str]] = None,
     uploaded_before: Optional[int] = None,
     uploaded_after: Optional[int] = None,
@@ -623,10 +638,10 @@ def search_document_objects(
         vector search.
 
     Parameters:
-        query (Optional[str]): Search by cosine similarity.
+        query (Optional[str | list[float]): Search by cosine similarity.
         mime_type (Optional[str]): Filter by MIME type.
         page (Optional[int]): Filter by page number.
-        type (Optional[ChunkType]): Filter by chunk type.
+        chunk_type (Optional[ChunkType]): Filter by chunk type.
         keywords (Optional[list[str]]): Filter by keywords.
         uploaded_before (Optional[int]): Filter by upload time (before).
         uploaded_after (Optional[int]): Filter by upload time (after).
@@ -666,8 +681,8 @@ def search_document_objects(
         exprs.append(f"{c.DOC_FLD_PAGE} == {page}")
     if mime_type:
         exprs.append(f'{c.DB_FLD_MIME_TYPE} == "{mime_type}"')
-    if type is not None:
-        exprs.append(f"{c.DOC_FLD_TYPE} == {chunk_type_to_idx(type)}")
+    if chunk_type is not None:
+        exprs.append(f"{c.DOC_FLD_TYPE} == {chunk_type_to_idx(chunk_type)}")
     if keywords:
         for kw in keywords:
             exprs.append(f'JSON_CONTAINS({c.DB_FLD_KEYWORDS}, "{kw}")')
@@ -681,10 +696,15 @@ def search_document_objects(
     expr = " and ".join(exprs) if exprs else ""
 
     if query is not None:
-        vector = db_utils.embedder.embed([query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
         results = db_utils.doc_obj_collection.search(
-            data=[vector],
+            data=[
+                (
+                    db_utils.embedder.embed([query])[0]
+                    if type(query) is str
+                    else query
+                )
+            ],
             anns_field=c.DOC_FLD_CONTENT_VECTOR,
             param=search_params,
             limit=limit,
@@ -729,3 +749,45 @@ def search_document_objects(
             )
             for r in results
         ]
+
+
+# --- Omni functions ---
+
+
+def o_search(
+    query: Optional[str] = None,
+    keywords: Optional[list[str]] = None,
+    uploaded_before: Optional[int] = None,
+    uploaded_after: Optional[int] = None,
+    extra_fields: Optional[dict[str, Any]] = None,
+    limit: int = 10,
+) -> list[tuple[float | None, Union[Image, Span, DocumentObject]]]:
+    query = query and db_utils.embedder.embed([query])[0]
+    r1 = search_images(
+        query=query,
+        keywords=keywords,
+        uploaded_before=uploaded_before,
+        uploaded_after=uploaded_after,
+        extra_fields=extra_fields,
+        limit=limit,
+    )
+    r2 = search_spans(
+        long_query=query,
+        keywords=keywords,
+        uploaded_before=uploaded_before,
+        uploaded_after=uploaded_after,
+        extra_fields=extra_fields,
+        limit=limit,
+    )
+    r3 = search_document_objects(
+        query=query,
+        keywords=keywords,
+        uploaded_before=uploaded_before,
+        uploaded_after=uploaded_after,
+        extra_fields=extra_fields,
+        limit=limit,
+    )
+    results = r1 + r2 + r3
+    if query is not None:
+        results = sorted(results, key=lambda x: x[0], reverse=True)
+    return results[:limit]

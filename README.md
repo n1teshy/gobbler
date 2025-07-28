@@ -66,7 +66,7 @@
 
 #### Core functions exposed to user
 
-There are `7` core functions to insert and search for information.
+There are `8` core functions to insert and search for information.
 
 ---
 
@@ -96,6 +96,7 @@ Some parameters are common to all core functions, they are explained here to red
   - for videos, use `from core.processors.video.core import VideoProcessor`
   - for images, use `from core.processors.docs.core import DocumentProcessor`
 
+- `extra_fields:` Dynamic fields.
 - `download_headers:` HTTP headers used for downloading the URI's content if it is an http/s link.
 - `throw_if_duplicate:` If set to `True`, this parameters makes the function throw a `ValueError` when the file being processed already exists in the database, the file's SHA-256 hash is used to check for duplicacy.
 
@@ -107,6 +108,7 @@ Some parameters are common to all core functions, they are explained here to red
 - `mime_type:` Filters by the given mimetype, e.g. `image/png`, `video/mp4`.
 - `uploaded_before:` Returns files uploaded before the given timestamp, in seconds.
 - `uploaded_after:` Returns files uploaded after the given timestamp, in seconds.
+- `extra_fields:` Dynamic fields.
 - `limit:` Expects an integer `n`, limits the number of returned matches to `n`.
 - `skip:` Expects an integer `n`, skips the first `n` matches.
   > Note: skipping is not supported when the search criteria includes vector similarity.
@@ -233,6 +235,23 @@ Parameters:
 
 - `page:` Index of a page of documents, matches against the `page` field of `document_objects` collection, starts from 0.
 - `type:` Type of object from the document, can be `text`, `table`, `figure` or `marginalia`, must be an attribute of the `agentic_doc.common.ChunkType` enum.
+
+#### `8. from core.db import o_search`
+```python
+def o_search(
+    query: Optional[str] = None,
+    keywords: Optional[list[str]] = None,
+    uploaded_before: Optional[int] = None,
+    uploaded_after: Optional[int] = None,
+    extra_fields: Optional[dict[str, Any]] = None,
+    limit: int = 10,
+) -> list[tuple[float | None, Union[Image, Span, DocumentObject]]]:
+```
+> Look at common parameters of search\_\* above.
+
+Returns a list of tuples where the first element of the tuple is a cosine score and the second may be an `Image`, `Span` or `DocumentObject`.
+
+---
 
 #### Data models
 `Image`, `Span` and `DocumentObject` have the same fields as their corresponding collections schemas, except for any vector fields. Data models also expose a `to_json()` method to get the data as a JSON object.
