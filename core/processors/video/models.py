@@ -1,6 +1,4 @@
-from typing import Optional
-
-from pydantic import BaseModel
+import json
 
 from core.processors.image.models import Image
 from core.processors.interfaces import BaseFile, DBEntity
@@ -14,14 +12,8 @@ class Span(DBEntity, BaseFile):
     frames: list[Image] = []
     keywords: list[str] = []
 
+    class Config:
+        extra = "allow"
+
     def to_json(self) -> dict:
-        return {
-            **DBEntity.to_json(self),
-            **BaseFile.to_json(self),
-            "start": self.start,
-            "end": self.end,
-            "short_description": self.short_description,
-            "long_description": self.long_description,
-            "frames": [frame.to_json() for frame in self.frames],
-            "keywords": self.keywords,
-        }
+        return json.loads(super().model_dump_json())

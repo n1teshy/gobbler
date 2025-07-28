@@ -288,13 +288,17 @@ class VideoProcessor(BaseProcessor):
 
         for span in spans:
             while (
-                frame_idx > 0 and frame_ranges[frame_idx]["start"] > span.start
+                0 <= frame_idx < len(frame_ranges)
+                and frame_ranges[frame_idx]["start"] > span.start
             ):
                 frame_idx -= 1
-            if frame_ranges[frame_idx]["start"] < span.start:
+            if (
+                0 <= frame_idx < len(frame_ranges)
+                and frame_ranges[frame_idx]["start"] < span.start
+            ):
                 frame_idx += 1
             while (
-                frame_idx < len(frame_ranges)
+                0 <= frame_idx < len(frame_ranges)
                 and min(frame_ranges[frame_idx]["end"], span.end)
                 - max(frame_ranges[frame_idx]["start"], span.start)
                 >= self.spf

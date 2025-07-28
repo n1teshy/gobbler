@@ -1,3 +1,4 @@
+import json
 import re
 from collections import namedtuple
 from html import unescape
@@ -5,7 +6,6 @@ from typing import Optional
 
 from agentic_doc.common import ChunkType
 
-from core.processors.docs.utils import chunk_type_to_idx
 from core.processors.interfaces import BaseFile, DBEntity
 
 Position = namedtuple("Position", ["top", "right", "bottom", "left"])
@@ -18,6 +18,9 @@ class DocumentObject(DBEntity, BaseFile):
     content: str
     keywords: list[str] = []
 
+    class Config:
+        extra = "allow"
+
     @property
     def table(self) -> Optional[list[list]]:
         if self.type != "table":
@@ -29,7 +32,9 @@ class DocumentObject(DBEntity, BaseFile):
         if not table_match:
             return []
         table_html = re.sub(r"\s+", " ", table_match.group(0))
-        rows = re.findall(r"<tr.*?>(.*?)</tr>", table_html, re.DOTALL | re.IGNORECASE)
+        rows = re.findall(
+            r"<tr.*?>(.*?)</tr>", table_html, re.DOTALL | re.IGNORECASE
+        )
         parsed_table = []
         for row_html in rows:
             cells = re.findall(
@@ -40,14 +45,9 @@ class DocumentObject(DBEntity, BaseFile):
             ]
             parsed_table.append(cell_texts)
         max_cols = max(len(row) for row in parsed_table)
-        return [(row + ([None] * (max_cols - len(row)))) for row in parsed_table]
+        return [
+            (row + ([None] * (max_cols - len(row)))) for row in parsed_table
+        ]
 
     def to_json(self) -> dict:
-        return {
-            **DBEntity.to_json(self),
-            **BaseFile.to_json(self),
-            "position": list(self.position),
-            "type": chunk_type_to_idx(self.type),
-            "content": self.content,
-            "keywords": self.keywords,
-        }
+        return json.loads(super().model_dump_json())

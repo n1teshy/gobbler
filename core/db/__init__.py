@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from agentic_doc.common import ChunkType
 
@@ -50,6 +50,7 @@ def get_doc_processor() -> DocumentProcessor:
 
 def ingest_image(
     uri: str,
+    extra_fields: Optional[dict[str, Any]] = None,
     uploaded_by: str = "system",
     version: Optional[float] = None,
     scene: Optional[SceneType] = None,
@@ -63,6 +64,8 @@ def ingest_image(
 
     Parameters:
         uri (str): Path to the image file.
+        extra_fields (Optional[dict[str, Any]]): Additional dynamic fields to
+            store.
         uploaded_by (str): User who uploaded the image. Defaults to 'system'.
         version (Optional[float]): Version number (defaults to file
             modification time).
@@ -120,11 +123,16 @@ def ingest_image(
             )[0],
             c.IMG_FLD_SPAN_ID: span_id,
         }
+        if extra_fields:
+            image_data.update(extra_fields)
+
         result = db_utils.images_collection.insert(data=[image_data])
         db_utils.images_collection.flush()
         image_id = result.primary_keys[0]
         processed_image.id = image_id
-        return processed_image
+        if extra_fields is None:
+            return processed_image
+        return Image(**(processed_image.to_json() | extra_fields))
     except Exception as e:
         raise RuntimeError(f"Failed to process image: {str(e)}")
     finally:
@@ -141,6 +149,7 @@ def search_images(
     span_id: Optional[int] = None,
     uploaded_before: Optional[int] = None,
     uploaded_after: Optional[int] = None,
+    extra_fields: Optional[dict[str, Any]] = None,
     limit: int = 10,
     skip: int = 0,
 ) -> list[tuple[float | None, Image]]:
@@ -156,6 +165,8 @@ def search_images(
         span_id (Optional[int]): Filter by associated span ID.
         uploaded_before (Optional[int]): Filter by upload time (before).
         uploaded_after (Optional[int]): Filter by upload time (after).
+        extra_fields (Optional[dict[str, Any]]): Additional dynamic fields to
+            filter by.
         limit (int): Maximum number of results to return. Defaults to 10.
         skip (int): Number of rows to skip (only for non-vector search).
             Defaults to 0.
@@ -181,6 +192,8 @@ def search_images(
         c.DB_FLD_KEYWORDS,
         c.IMG_FLD_SPAN_ID,
     ]
+    if extra_fields:
+        output_fields.extend(extra_fields.keys())
 
     exprs = []
     images = []
@@ -200,6 +213,9 @@ def search_images(
     if keywords:
         for kw in keywords:
             exprs.append(f'JSON_CONTAINS({c.DB_FLD_KEYWORDS}, "{kw}")')
+    if extra_fields:
+        for field, value in extra_fields.items():
+            exprs.append(f'{field} == "{value}"')
     expr = " and ".join(exprs) if exprs else ""
 
     if query is not None:
@@ -240,6 +256,8 @@ def search_images(
 
 def ingest_video(
     uri: str,
+    extra_fields: Optional[dict[str, Any]] = None,
+    extra_frame_fields: Optional[dict[str, Any]] = None,
     uploaded_by: str = "system",
     version: Optional[float] = None,
     processor: Optional[VideoProcessor] = None,
@@ -251,6 +269,10 @@ def ingest_video(
 
     Parameters:
         uri (str): Path to the video file.
+        extra_fields (Optional[dict[str, Any]]): Additional dynamic fields to
+            store.
+        extra_frame_fields (Optional[dict[str, Any]]): Additional dynamic fields
+            to store for each frame.
         uploaded_by (str): User who uploaded the video. Defaults to 'system'.
         version (Optional[float]): Version number (defaults to file modification
             time).
@@ -285,7 +307,8 @@ def ingest_video(
             for span in spans:
                 span.uri = uri
 
-        for span in spans:
+        for span_idx in range(len(spans)):
+            span = spans[span_idx]
             if uploaded_by is not None:
                 span.uploaded_by = uploaded_by
             if version is not None:
@@ -310,11 +333,15 @@ def ingest_video(
                     [span.long_description]
                 )[0],
             }
+            if extra_fields:
+                span_data.update(extra_fields)
             span_result = db_utils.spans_collection.insert(data=[span_data])
             db_utils.spans_collection.flush()
             span_id = span_result.primary_keys[0]
             inserted_span_ids.append(span_id)
             span.id = span_id
+            if extra_fields is not None:
+                spans[span_idx] = Span(**(span.to_json() | extra_fields))
 
             for frame in span.frames:
                 frame_data = {
@@ -336,6 +363,8 @@ def ingest_video(
                     )[0],
                     c.IMG_FLD_SPAN_ID: span_id,
                 }
+                if extra_frame_fields:
+                    frame_data.update(extra_frame_fields)
                 frame_result = db_utils.images_collection.insert(
                     data=[frame_data]
                 )
@@ -373,6 +402,7 @@ def search_spans(
     keywords: Optional[list[str]] = None,
     uploaded_before: Optional[int] = None,
     uploaded_after: Optional[int] = None,
+    extra_fields: Optional[dict[str, Any]] = None,
     limit: int = 10,
     skip: int = 0,
 ) -> list[tuple[float | None, Span]]:
@@ -388,6 +418,8 @@ def search_spans(
         keywords (Optional[list[str]]): Filter by keywords.
         uploaded_before (Optional[int]): Filter by upload time (before).
         uploaded_after (Optional[int]): Filter by upload time (after).
+        extra_fields (Optional[dict[str, Any]]): Additional dynamic fields to
+            filter by.
         limit (int): Maximum number of results to return. Defaults to 10.
         skip (int): Number of rows to skip (only for non-vector search).
             Defaults to 0.
@@ -413,6 +445,8 @@ def search_spans(
         c.SPAN_FLD_LONG_DESCRIPTION,
         c.DB_FLD_KEYWORDS,
     ]
+    if extra_fields:
+        output_fields.extend(extra_fields.keys())
 
     exprs = []
     if mime_type:
@@ -424,7 +458,11 @@ def search_spans(
         exprs.append(f"{c.DB_FLD_UPLOADED_AT} < {uploaded_before}")
     if uploaded_after is not None:
         exprs.append(f"{c.DB_FLD_UPLOADED_AT} > {uploaded_after}")
+    if extra_fields:
+        for field, value in extra_fields.items():
+            exprs.append(f'{field} == "{value}"')
     expr = " and ".join(exprs) if exprs else ""
+
     if short_query is not None:
         vector = db_utils.embedder.embed([short_query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
@@ -471,6 +509,7 @@ def search_spans(
 
 def ingest_document(
     uri: str,
+    extra_fields: Optional[dict[str, Any]] = None,
     uploaded_by: str = "system",
     version: Optional[float] = None,
     processor: Optional[DocumentProcessor] = None,
@@ -480,6 +519,8 @@ def ingest_document(
     """
     Parameters:
         uri (str): Path to the document file.
+        extra_fields (Optional[dict[str, Any]]): Additional dynamic fields to
+            store.
         uploaded_by (str): User who uploaded the document. Defaults to
             'system'.
         version (Optional[float]): Version number (defaults to file
@@ -514,7 +555,8 @@ def ingest_document(
             for doc_obj in doc_objects:
                 doc_obj.uri = uri
 
-        for doc_obj in doc_objects:
+        for doc_obj_idx in range(len(doc_objects)):
+            doc_obj = doc_objects[doc_obj_idx]
             if uploaded_by is not None:
                 doc_obj.uploaded_by = uploaded_by
             if version is not None:
@@ -537,10 +579,16 @@ def ingest_document(
                 )[0],
                 c.DB_FLD_KEYWORDS: doc_obj.keywords,
             }
+            if extra_fields:
+                doc_data.update(extra_fields)
             result = db_utils.doc_obj_collection.insert(data=[doc_data])
             db_utils.doc_obj_collection.flush()
             doc_obj_id = result.primary_keys[0]
             doc_obj.id = doc_obj_id
+            if extra_fields is not None:
+                doc_objects[doc_obj_idx] = DocumentObject(
+                    **(doc_obj.to_json() | extra_fields)
+                )
             inserted_ids.append(doc_obj_id)
         return doc_objects
     except Exception as e:
@@ -552,7 +600,7 @@ def ingest_document(
                 db_utils.images_collection.flush()
             except Exception:
                 pass
-        raise RuntimeError(f"Failed to process document: {str(e)}")
+        raise e
     finally:
         if downloaded:
             os.remove(path)
@@ -566,6 +614,7 @@ def search_document_objects(
     keywords: Optional[list[str]] = None,
     uploaded_before: Optional[int] = None,
     uploaded_after: Optional[int] = None,
+    extra_fields: Optional[dict[str, Any]] = None,
     limit: int = 10,
     skip: int = 0,
 ) -> list[tuple[float | None, DocumentObject]]:
@@ -582,6 +631,8 @@ def search_document_objects(
         uploaded_before (Optional[int]): Filter by upload time (before).
         uploaded_after (Optional[int]): Filter by upload time (after).
         content (Optional[str]): Search by content (vector search if provided).
+        extra_fields (Optional[dict[str, Any]]): Additional dynamic fields to
+            filter by.
         limit (int): Maximum number of results to return. Defaults to 10.
         skip (int): Number of rows to skip (only for non-vector search).
             Defaults to 0.
@@ -607,6 +658,8 @@ def search_document_objects(
         c.DOC_FLD_CONTENT,
         c.DB_FLD_KEYWORDS,
     ]
+    if extra_fields:
+        output_fields.extend(extra_fields.keys())
 
     exprs = []
     if page is not None:
@@ -622,8 +675,11 @@ def search_document_objects(
         exprs.append(f"{c.DB_FLD_UPLOADED_AT} < {uploaded_before}")
     if uploaded_after is not None:
         exprs.append(f"{c.DB_FLD_UPLOADED_AT} > {uploaded_after}")
-
+    if extra_fields:
+        for field, value in extra_fields.items():
+            exprs.append(f'{field} == "{value}"')
     expr = " and ".join(exprs) if exprs else ""
+
     if query is not None:
         vector = db_utils.embedder.embed([query])[0]
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
