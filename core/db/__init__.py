@@ -54,7 +54,6 @@ def ingest_image(
     version: Optional[float] = None,
     scene: Optional[SceneType] = None,
     span_id: Optional[int] = None,
-    keywords: list[str] = None,
     processor: Optional[ImageProcessor] = None,
     download_headers: Optional[dict[str, str]] = None,
     throw_if_duplicate: bool = True,
@@ -70,8 +69,6 @@ def ingest_image(
         scene (Optional[SceneType]): Scene type (computed using CLIP if not
             provided).
         span_id (Optional[int]): Optional span ID to link image to.
-        keywords (list[str], optional): List of keywords to associate with
-            the image.
         processor (Optional[ImageProcessor]): Custom image processor instance.
             Defaults to None.
         download_headers (Optional[dict[str, str]]): Headers for downloading the
@@ -101,8 +98,6 @@ def ingest_image(
             processed_image.uploaded_by = uploaded_by
         if version is not None:
             processed_image.version = version
-        if keywords is not None:
-            processed_image.keywords = keywords
 
         image_data = {
             c.DB_FLD_URI: processed_image.uri,
