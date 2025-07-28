@@ -1,0 +1,31 @@
+The model is a giant math equation that takes a vector of integers which represent a list of tokens(words or subwords)
+and spits out logits(weights) for the next token that could follow that sequence of words.
+
+e.g. model(["The book origin of specicies was authored by charles"]) -> {"Darwin": 2.4, "Dickens": 1.3, "Babbage": 0.6}
+The model assigns a higher logit value to 'Darwin' since it saw this sequence of words being followed by 'Darwin' more
+times than any other other word.
+
+These logits are raw numerical weights assigned to tokens, not probabilities, they could be any real number(-inf to +inf),
+they are converted to probabilites using the softmax function, softmax takes a list of real numbers and converts them
+into probabilities.
+
+e.g. if token_to_logit = {t1: 1.4, t2: 2.2, t3: 3.1, t4: 2.7, t5: 1.9}
+softmax(t1) = (e ^ token_to_logit[t1]) / sum((e ^ token_to_logit[t]) for t in token_to_logit)
+
+tokens are assigned probabilities proportional to their logit, high logit = high probability.
+
+then a sampler(see torch.multinomial from pytorch) selects one of these tokens based on their probabilities to be the
+next token, tokens with higher probability are more likely to be the next token. and the selected token is appended to
+the input list of tokens and this updated list goes through the model again to produce the next token again, in each round,
+the previous output becomes the current input.
+
+e.g. input = ["The"]
+step 1. model(["The"]) -> "quick"
+step 2. model(["The", "quick"]) -> "brown"
+step 3. model(["The", "quick", "brown"]) -> "fox"
+step 4. model(["The", "quick", "brown", "fox"]) -> "jumped"
+
+this goes on until a max_token limit is exhausted or a special 'EOS' (end of sequence) token is encountered. the EOS token is
+added to answers in a dataset(e.g. "<question>/n<answer>[EOS]") so when the model trains on these question answer pairs, it also
+learns to predict 'EOS' after a helpful answer, this helps to stop the token generation at a meaningful point instead of
+guessing when the model has generated an answer fully.
