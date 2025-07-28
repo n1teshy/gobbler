@@ -53,7 +53,7 @@ class ImageProcessor(BaseProcessor):
 
     def classify(self, path: str) -> Optional[SceneType]:
         scene_probs = classify_images([path])[0]
-        top_scene, top_prob = scene_probs[0][0]
+        top_scene, top_prob = scene_probs[0]
         if top_prob >= glb.clip_prob_thresh:
             return top_scene
         scene_probs = {scene: prob for scene, prob in scene_probs}
