@@ -563,6 +563,8 @@ def search_document_objects(
     page: Optional[int] = None,
     type: Optional[ChunkType] = None,
     keywords: Optional[list[str]] = None,
+    uploaded_before: Optional[float] = None,
+    uploaded_after: Optional[float] = None,
     limit: int = 10,
     skip: int = 0,
 ) -> list[tuple[float | None, DocumentObject]]:
@@ -574,6 +576,8 @@ def search_document_objects(
         page (Optional[int]): Filter by page number.
         type (Optional[ChunkType]): Filter by chunk type.
         keywords (Optional[list[str]]): Filter by keywords.
+        uploaded_before (Optional[float]): Filter by upload time (before).
+        uploaded_after (Optional[float]): Filter by upload time (after).
         content (Optional[str]): Search by content (vector search if provided).
         limit (int): Maximum number of results to return. Defaults to 10.
         skip (int): Number of rows to skip (only for non-vector search).
@@ -609,6 +613,10 @@ def search_document_objects(
     if keywords:
         for kw in keywords:
             exprs.append(f'JSON_CONTAINS({c.DB_FLD_KEYWORDS}, "{kw}")')
+    if uploaded_before is not None:
+        exprs.append(f"{c.DB_FLD_UPLOADED_AT} < {uploaded_before}")
+    if uploaded_after is not None:
+        exprs.append(f"{c.DB_FLD_UPLOADED_AT} > {uploaded_after}")
 
     expr = " and ".join(exprs) if exprs else ""
     if query is not None:
