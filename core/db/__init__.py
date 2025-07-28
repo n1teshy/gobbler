@@ -136,12 +136,11 @@ def search_images(
     query: Optional[str] = None,
     mime_type: Optional[str] = None,
     uploaded_by: Optional[str] = None,
-    hash: Optional[str] = None,
     scene: Optional[SceneType] = None,
     keywords: Optional[list[str]] = None,
     span_id: Optional[int] = None,
-    uploaded_before: Optional[float] = None,
-    uploaded_after: Optional[float] = None,
+    uploaded_before: Optional[int] = None,
+    uploaded_after: Optional[int] = None,
     limit: int = 10,
     skip: int = 0,
 ) -> list[tuple[float | None, Image]]:
@@ -151,13 +150,12 @@ def search_images(
     Parameters:
         mime_type (Optional[str]): Filter by MIME type.
         uploaded_by (Optional[str]): Filter by uploader.
-        hash (Optional[str]): Filter by file hash.
         description (Optional[str]): Search by description (vector search if
             provided).
         keywords (Optional[list[str]]): Filter by keywords.
         span_id (Optional[int]): Filter by associated span ID.
-        uploaded_before (Optional[float]): Filter by upload time (before).
-        uploaded_after (Optional[float]): Filter by upload time (after).
+        uploaded_before (Optional[int]): Filter by upload time (before).
+        uploaded_after (Optional[int]): Filter by upload time (after).
         limit (int): Maximum number of results to return. Defaults to 10.
         skip (int): Number of rows to skip (only for non-vector search).
             Defaults to 0.
@@ -191,8 +189,6 @@ def search_images(
         exprs.append(f'{c.DB_FLD_MIME_TYPE} == "{mime_type}"')
     if uploaded_by:
         exprs.append(f'{c.DB_FLD_UPLOADED_BY} == "{uploaded_by}"')
-    if hash:
-        exprs.append(f'{c.DB_FLD_HASH} == "{hash}"')
     if scene is not None:
         exprs.append(f"{c.IMG_FLD_SCENE} == {scene_type_to_idx(scene)}")
     if span_id is not None:
@@ -373,9 +369,10 @@ def ingest_video(
 def search_spans(
     short_query: Optional[str] = None,
     long_query: Optional[str] = None,
+    mime_type: Optional[str] = None,
     keywords: Optional[list[str]] = None,
-    uploaded_before: Optional[float] = None,
-    uploaded_after: Optional[float] = None,
+    uploaded_before: Optional[int] = None,
+    uploaded_after: Optional[int] = None,
     limit: int = 10,
     skip: int = 0,
 ) -> list[tuple[float | None, Span]]:
@@ -383,13 +380,14 @@ def search_spans(
     Search for video spans in the database using metadata and/or vector search.
 
     Parameters:
-        short_description (Optional[str]): Search by short description
+        short_query (Optional[str]): Search by short description
             (vector search if provided).
-        long_description (Optional[str]): Search by long description
+        long_query (Optional[str]): Search by long description
             (vector search if provided).
+        mime_type (Optional[str]): Filter by MIME type.
         keywords (Optional[list[str]]): Filter by keywords.
-        uploaded_before (Optional[float]): Filter by upload time (before).
-        uploaded_after (Optional[float]): Filter by upload time (after).
+        uploaded_before (Optional[int]): Filter by upload time (before).
+        uploaded_after (Optional[int]): Filter by upload time (after).
         limit (int): Maximum number of results to return. Defaults to 10.
         skip (int): Number of rows to skip (only for non-vector search).
             Defaults to 0.
@@ -417,6 +415,8 @@ def search_spans(
     ]
 
     exprs = []
+    if mime_type:
+        exprs.append(f'{c.DB_FLD_MIME_TYPE} == "{mime_type}"')
     if keywords:
         for kw in keywords:
             exprs.append(f'JSON_CONTAINS({c.DB_FLD_KEYWORDS}, "{kw}")')
@@ -560,11 +560,12 @@ def ingest_document(
 
 def search_document_objects(
     query: Optional[str] = None,
+    mime_type: Optional[str] = None,
     page: Optional[int] = None,
     type: Optional[ChunkType] = None,
     keywords: Optional[list[str]] = None,
-    uploaded_before: Optional[float] = None,
-    uploaded_after: Optional[float] = None,
+    uploaded_before: Optional[int] = None,
+    uploaded_after: Optional[int] = None,
     limit: int = 10,
     skip: int = 0,
 ) -> list[tuple[float | None, DocumentObject]]:
@@ -573,11 +574,13 @@ def search_document_objects(
         vector search.
 
     Parameters:
+        query (Optional[str]): Search by cosine similarity.
+        mime_type (Optional[str]): Filter by MIME type.
         page (Optional[int]): Filter by page number.
         type (Optional[ChunkType]): Filter by chunk type.
         keywords (Optional[list[str]]): Filter by keywords.
-        uploaded_before (Optional[float]): Filter by upload time (before).
-        uploaded_after (Optional[float]): Filter by upload time (after).
+        uploaded_before (Optional[int]): Filter by upload time (before).
+        uploaded_after (Optional[int]): Filter by upload time (after).
         content (Optional[str]): Search by content (vector search if provided).
         limit (int): Maximum number of results to return. Defaults to 10.
         skip (int): Number of rows to skip (only for non-vector search).
@@ -608,6 +611,8 @@ def search_document_objects(
     exprs = []
     if page is not None:
         exprs.append(f"{c.DOC_FLD_PAGE} == {page}")
+    if mime_type:
+        exprs.append(f'{c.DB_FLD_MIME_TYPE} == "{mime_type}"')
     if type is not None:
         exprs.append(f"{c.DOC_FLD_TYPE} == {chunk_type_to_idx(type)}")
     if keywords:
