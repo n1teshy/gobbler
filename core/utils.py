@@ -7,8 +7,10 @@ import string
 import tempfile
 import time
 from typing import Optional
+from urllib.parse import urlparse
 
 import appdirs
+import requests
 
 import core.meta as meta
 
@@ -65,3 +67,21 @@ def load_usage_data(file: str) -> dict:
 def dump_usage_data(data: dict, file: str) -> None:
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
+
+
+def uri_to_file(
+    uri: str, headers: Optional[dict] = None, chunk_size: int = 8192
+) -> tuple[bool, str]:
+    parsed = urlparse(uri)
+    if parsed.scheme not in {"http", "https", "file", ""}:
+        raise ValueError(f"Unsupported URI scheme: {uri}")
+    if parsed.scheme in {"http", "https"}:
+        temp_path = temp_file(suffix=os.path.splitext(parsed.path)[-1])
+        with requests.get(uri, stream=True, headers=headers) as response:
+            response.raise_for_status()
+            with open(temp_path, "wb") as out_file:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        out_file.write(chunk)
+        return True, temp_path
+    return False, uri

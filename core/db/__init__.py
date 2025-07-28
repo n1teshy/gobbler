@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 from agentic_doc.common import ChunkType
@@ -16,7 +17,7 @@ from core.processors.image.utils import (
 )
 from core.processors.video.core import VideoProcessor
 from core.processors.video.models import Span
-from core.utils import hash_file
+from core.utils import hash_file, uri_to_file
 
 _image_processor: ImageProcessor | None = None
 _video_processor: VideoProcessor | None = None
@@ -48,20 +49,21 @@ def get_doc_processor() -> DocumentProcessor:
 
 
 def ingest_image(
-    path: str,
+    uri: str,
     uploaded_by: str = "system",
     version: Optional[float] = None,
     scene: Optional[SceneType] = None,
     span_id: Optional[int] = None,
     keywords: list[str] = None,
     processor: Optional[ImageProcessor] = None,
+    download_headers: Optional[dict[str, str]] = None,
     throw_if_duplicate: bool = True,
 ) -> Image:
     """
     Ingest an image file into the database.
 
     Parameters:
-        path (str): Path to the image file.
+        uri (str): Path to the image file.
         uploaded_by (str): User who uploaded the image. Defaults to 'system'.
         version (Optional[float]): Version number (defaults to file
             modification time).
@@ -72,31 +74,36 @@ def ingest_image(
             the image.
         processor (Optional[ImageProcessor]): Custom image processor instance.
             Defaults to None.
+        download_headers (Optional[dict[str, str]]): Headers for downloading the
+            URI content.
         throw_if_duplicate (bool): If True, raises error if image with same
             hash exists. Defaults to True.
 
     Returns:
         Image: Image object with database ID and updated attributes.
     """
-    if throw_if_duplicate:
-        existing_image = db_utils.images_collection.query(
-            expr=f'{c.DB_FLD_HASH} == "{hash_file(path)}"',
-            output_fields=[c.DB_FLD_ID],
-            limit=1,
-        )
-        if existing_image:
-            raise ValueError("this image already exists")
-
-    processor = processor or get_image_processor()
-    processed_image = processor.process(path, scene)
-    if uploaded_by is not None:
-        processed_image.uploaded_by = uploaded_by
-    if version is not None:
-        processed_image.version = version
-    if keywords is not None:
-        processed_image.keywords = keywords
-
+    downloaded, path = uri_to_file(uri, headers=download_headers)
     try:
+        if throw_if_duplicate:
+            existing_image = db_utils.images_collection.query(
+                expr=f'{c.DB_FLD_HASH} == "{hash_file(path)}"',
+                output_fields=[c.DB_FLD_ID],
+                limit=1,
+            )
+            if existing_image:
+                raise ValueError("this image already exists")
+
+        processor = processor or get_image_processor()
+        processed_image = processor.process(path, scene)
+        if downloaded:
+            processed_image.uri = uri
+        if uploaded_by is not None:
+            processed_image.uploaded_by = uploaded_by
+        if version is not None:
+            processed_image.version = version
+        if keywords is not None:
+            processed_image.keywords = keywords
+
         image_data = {
             c.DB_FLD_URI: processed_image.uri,
             c.DB_FLD_MIME_TYPE: processed_image.mime_type,
@@ -125,6 +132,9 @@ def ingest_image(
         return processed_image
     except Exception as e:
         raise RuntimeError(f"Failed to process image: {str(e)}")
+    finally:
+        if downloaded:
+            os.remove(path)
 
 
 def search_images(
@@ -238,22 +248,25 @@ def search_images(
 
 
 def ingest_video(
-    path: str,
+    uri: str,
     uploaded_by: str = "system",
     version: Optional[float] = None,
     processor: Optional[VideoProcessor] = None,
+    download_headers: Optional[dict[str, str]] = None,
     throw_if_duplicate: bool = True,
 ) -> list[Span]:
     """
     Ingest a video file into the database with atomic transaction.
 
     Parameters:
-        path (str): Path to the video file.
+        uri (str): Path to the video file.
         uploaded_by (str): User who uploaded the video. Defaults to 'system'.
         version (Optional[float]): Version number (defaults to file modification
             time).
         processor (Optional[VideoProcessor]): Custom video processor instance.
             Defaults to None.
+        download_headers (Optional[dict[str, str]]): Headers for downloading the
+            URI content.
         throw_if_duplicate (bool): If True, raises error if video with same
             hash exists. Defaults to True.
 
@@ -261,21 +274,26 @@ def ingest_video(
         list[Span]: List of Span objects with database IDs and updated
             attributes.
     """
-    if throw_if_duplicate:
-        existing_image = db_utils.spans_collection.query(
-            expr=f'{c.DB_FLD_HASH} == "{hash_file(path)}"',
-            output_fields=[c.DB_FLD_ID],
-            limit=1,
-        )
-        if existing_image:
-            raise ValueError("this video already exists")
-
-    processor = processor or get_video_processor()
-    spans = processor.process(path)
+    downloaded, path = uri_to_file(uri, headers=download_headers)
     inserted_span_ids = []
     inserted_image_ids = []
 
     try:
+        if throw_if_duplicate:
+            existing_image = db_utils.spans_collection.query(
+                expr=f'{c.DB_FLD_HASH} == "{hash_file(path)}"',
+                output_fields=[c.DB_FLD_ID],
+                limit=1,
+            )
+            if existing_image:
+                raise ValueError("this video already exists")
+
+        processor = processor or get_video_processor()
+        spans = processor.process(path)
+        if downloaded:
+            for span in spans:
+                span.uri = uri
+
         for span in spans:
             if uploaded_by is not None:
                 span.uploaded_by = uploaded_by
@@ -352,6 +370,9 @@ def ingest_video(
             except Exception:
                 pass
         raise RuntimeError(f"Failed to process video: {str(e)}")
+    finally:
+        if downloaded:
+            os.remove(path)
 
 
 def search_spans(
@@ -454,41 +475,49 @@ def search_spans(
 
 
 def ingest_document(
-    path: str,
+    uri: str,
     uploaded_by: str = "system",
     version: Optional[float] = None,
     processor: Optional[DocumentProcessor] = None,
+    download_headers: Optional[dict[str, str]] = None,
     throw_if_duplicate: bool = True,
 ) -> list[DocumentObject]:
     """
     Parameters:
-        path (str): Path to the document file.
+        uri (str): Path to the document file.
         uploaded_by (str): User who uploaded the document. Defaults to
             'system'.
         version (Optional[float]): Version number (defaults to file
             modification time).
         processor (Optional[DocumentProcessor]): Custom document processor
             instance. Defaults to None.
+        download_headers (Optional[dict[str, str]]): Headers for downloading the
+            URI content.
         throw_if_duplicate (bool): If True, raises error if document with
             same hash exists. Defaults to True.
 
     Returns:
         list[DocumentObject]: List of DocumentObject instances.
     """
-    if throw_if_duplicate:
-        existing_doc = db_utils.doc_obj_collection.query(
-            expr=f'{c.DB_FLD_HASH} == "{hash_file(path)}"',
-            output_fields=[c.DB_FLD_ID],
-            limit=1,
-        )
-        if existing_doc:
-            raise ValueError("this document already exists")
-
-    processor = processor or get_doc_processor()
+    downloaded, path = uri_to_file(uri, headers=download_headers)
     inserted_ids = []
 
     try:
+        if throw_if_duplicate:
+            existing_doc = db_utils.doc_obj_collection.query(
+                expr=f'{c.DB_FLD_HASH} == "{hash_file(path)}"',
+                output_fields=[c.DB_FLD_ID],
+                limit=1,
+            )
+            if existing_doc:
+                raise ValueError("this document already exists")
+
+        processor = processor or get_doc_processor()
+
         doc_objects = processor.process(path)
+        if downloaded:
+            for doc_obj in doc_objects:
+                doc_obj.uri = uri
 
         for doc_obj in doc_objects:
             if uploaded_by is not None:
@@ -529,6 +558,9 @@ def ingest_document(
             except Exception:
                 pass
         raise RuntimeError(f"Failed to process document: {str(e)}")
+    finally:
+        if downloaded:
+            os.remove(path)
 
 
 def search_document_objects(
