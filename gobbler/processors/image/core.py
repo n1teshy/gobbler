@@ -130,19 +130,16 @@ class ImageProcessor(BaseProcessor):
         if not os.path.exists(path):
             raise FileNotFoundError(f"File not found: {path}")
 
-        typ, _ = mimetypes.guess_type(path)
-        if not typ.startswith("image/"):
-            raise ValueError(f"Unsupported file: {path}")
-
-        scene = scene or self.classify(path)
-        shape = cv2.imread(path).shape[:2]
-        desc_dict = self.describe(path, scene, typ)
-        if desc_dict is None:
-            raise RuntimeError(f"Failed to describe image: {path}")
-
         metadata = get_file_metadata(path)
         if not metadata["mime_type"].startswith("image/"):
             raise ValueError(f"Doesn't seem to be an image {path}")
+
+        scene = scene or self.classify(path)
+        shape = cv2.imread(path).shape[:2]
+        desc_dict = self.describe(path, scene, metadata["mime_type"])
+        if desc_dict is None:
+            raise RuntimeError(f"Failed to describe image: {path}")
+
         return Image(
             **metadata,
             shape=f"{shape[0]}x{shape[1]}",

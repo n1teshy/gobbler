@@ -322,11 +322,15 @@ class VideoProcessor(BaseProcessor):
         if not os.path.exists(path):
             raise FileNotFoundError(f"Video file not found: {path}")
 
-        if show_progress:
-            logger.info(f"--- transcribing ---")
+        metadata = get_file_metadata(path)
+        if not metadata["mime_type"].startswith("video/"):
+            raise ValueError(f"Doesn't seem to be a video {path}")
+
         frames, frame_time_ranges, dur = self.extract_frames(
             path, show_progress
         )
+        if show_progress:
+            logger.info(f"--- transcribing ---")
         txpn_segments = self.transcribe(path)
         self.txpn_usage_data[cred.AZURE_WHISPER_MODEL]["seconds"] += dur
         dump_usage_data(self.txpn_usage_data, self.txpn_usage_file)
@@ -336,10 +340,6 @@ class VideoProcessor(BaseProcessor):
             raise RuntimeError("Failed to get topics")
 
         span_dicts = self.get_spans(topic_time_ranges, txpn_segments)
-        metadata = get_file_metadata(path)
-        if not metadata["mime_type"].startswith("video/"):
-            raise ValueError(f"Doesn't seem to be a video {path}")
-
         spans: list[Span] = []
 
         for span_kwargs in span_dicts:
