@@ -66,7 +66,7 @@
 
 #### Getting started
 - Ensure [ffmpeg](https://ffmpeg.org/download.html) is installed (skip if you don't need video processing).
-- Build and run `Dockerfile.converter`.
+- Build and run `Dockerfile.converter`, used to convert documents to PDF for easier processing.
   ```bash
   cd <project_directory>
   docker build -f Dockerfile.converter -t <image_name> .
@@ -77,6 +77,8 @@
   pip install "git+https://dev.azure.com/Zifo/AIdeate%20and%20AIterate/_git/Multi-Modal%20Data%20Ingestion%20Pipeline"
   ```
   > NOTE: the code may not have been merged to main branch, try "git+https://dev.azure.com/Zifo/AIdeate%20and%20AIterate/_git/Multi-Modal%20Data%20Ingestion%20Pipeline@dev/nitesh" in case installation fails
+
+- Ensure all environment variables are set.
 
 - Initialize Gobbler.
   ```bash
