@@ -74,8 +74,10 @@
   ```
 - Install Gobbler.
   ```bash
-  pip install git+https://dev.azure.com/Zifo/AIdeate%20and%20AIterate/_git/Multi-Modal%20Data%20Ingestion%20Pipeline
+  pip install "git+https://dev.azure.com/Zifo/AIdeate%20and%20AIterate/_git/Multi-Modal%20Data%20Ingestion%20Pipeline"
   ```
+  > NOTE: the code may not have been merged to main branch, try "git+https://dev.azure.com/Zifo/AIdeate%20and%20AIterate/_git/Multi-Modal%20Data%20Ingestion%20Pipeline@dev/nitesh" in case installation fails
+
 - Initialize Gobbler.
   ```bash
   from gobbler import init
