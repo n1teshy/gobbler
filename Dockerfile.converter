@@ -5,7 +5,7 @@ RUN apk add --no-cache libreoffice \
 
 WORKDIR /app
 
-COPY core/processors/office_to_pdf.py app.py
+COPY gobbler/processors/office_to_pdf.py app.py
 
 RUN pip install fastapi uvicorn python-multipart
 

@@ -69,7 +69,7 @@
 - Build and run `Dockerfile.converter`.
   ```bash
   cd <project_directory>
-  docker build -t <image_name> .
+  docker build -f Dockerfile.converter -t <image_name> .
   docker run -d -p 8000:8000 <image_name>
   ```
 - Install Gobbler.
