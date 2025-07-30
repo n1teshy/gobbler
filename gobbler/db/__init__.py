@@ -3,21 +3,21 @@ from typing import Any, Optional, Union
 
 from agentic_doc.common import ChunkType
 
-import core.constants as c
-import core.db.utils as db_utils
-from core.processors.docs.core import DocumentProcessor
-from core.processors.docs.models import DocumentObject
-from core.processors.docs.utils import chunk_type_to_idx, idx_to_chunk_type
-from core.processors.image.core import ImageProcessor
-from core.processors.image.models import Image
-from core.processors.image.utils import (
+import gobbler.constants as c
+import gobbler.db.utils as db_utils
+from gobbler.processors.docs.core import DocumentProcessor
+from gobbler.processors.docs.models import DocumentObject
+from gobbler.processors.docs.utils import chunk_type_to_idx, idx_to_chunk_type
+from gobbler.processors.image.core import ImageProcessor
+from gobbler.processors.image.models import Image
+from gobbler.processors.image.utils import (
     SceneType,
     idx_to_scene_type,
     scene_type_to_idx,
 )
-from core.processors.video.core import VideoProcessor
-from core.processors.video.models import Span
-from core.utils import hash_file, uri_to_file
+from gobbler.processors.video.core import VideoProcessor
+from gobbler.processors.video.models import Span
+from gobbler.utils import hash_file, uri_to_file
 
 _image_processor: ImageProcessor | None = None
 _video_processor: VideoProcessor | None = None

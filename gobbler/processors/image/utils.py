@@ -5,7 +5,7 @@ from typing import Union
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
-import core.globals as glb
+import gobbler.globals as glb
 
 clip_utils = (None, None)
 image_categories = [
@@ -46,7 +46,9 @@ def get_clip_utils() -> tuple[CLIPModel, CLIPProcessor]:
 
     if None in clip_utils:
         model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
-        processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
+        processor = CLIPProcessor.from_pretrained(
+            "openai/clip-vit-large-patch14"
+        )
         clip_utils = (model, processor)
 
     return clip_utils
@@ -69,7 +71,10 @@ def classify_images(
 
     model, processor = get_clip_utils()
     inputs = processor(
-        text=image_categories, images=paths_or_images, return_tensors="pt", padding=True
+        text=image_categories,
+        images=paths_or_images,
+        return_tensors="pt",
+        padding=True,
     )
     outputs = model(**inputs)
     logits_per_image = outputs.logits_per_image

@@ -7,19 +7,19 @@ from typing import Literal, Optional
 import cv2
 from openai import AzureOpenAI
 
-import core.constants as c
-import core.cred as cred
-import core.globals as glb
-from core.processors.image.models import Image
-from core.processors.image.utils import (
+import gobbler.constants as c
+import gobbler.cred as cred
+import gobbler.globals as glb
+from gobbler.processors.image.models import Image
+from gobbler.processors.image.utils import (
     SceneType,
     classify_images,
     sys_msg_desc_text,
     sys_msg_dsc_diagram,
     sys_msg_dsc_entities,
 )
-from core.processors.interfaces import BaseProcessor
-from core.utils import (
+from gobbler.processors.interfaces import BaseProcessor
+from gobbler.utils import (
     dump_usage_data,
     get_file_metadata,
     get_usage_file,

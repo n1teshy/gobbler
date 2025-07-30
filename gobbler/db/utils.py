@@ -11,9 +11,9 @@ from pymilvus import (
     utility,
 )
 
-import core.constants as c
-import core.cred as cred
-from core.embedders.azure import AzureEmbedder
+import gobbler.constants as c
+import gobbler.cred as cred
+from gobbler.embedders.azure import AzureEmbedder
 
 spans_collection: Collection | None = None
 images_collection: Collection | None = None

@@ -5,8 +5,8 @@ from urllib.parse import urljoin
 import requests
 from agentic_doc.common import ChunkType
 
-import core.cred as cred
-from core.utils import temp_file
+import gobbler.cred as cred
+from gobbler.utils import temp_file
 
 idx_2_chunk_type = [
     ChunkType.text,

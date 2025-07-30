@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
 
-import core.globals as glb
+import gobbler.globals as glb
 
 topic_sys_msg = open(
     os.path.join(glb.instructions_dir, "get_topics.txt"), encoding="utf-8"
@@ -23,7 +23,9 @@ def get_frame_info(path: str) -> tuple[int, int]:
         cap.release()
 
 
-def get_hist_score(img1: Union[str, np.ndarray], img2: Union[str, np.ndarray]) -> float:
+def get_hist_score(
+    img1: Union[str, np.ndarray], img2: Union[str, np.ndarray]
+) -> float:
     if isinstance(img1, str):
         assert os.path.exists(img1), "non-existent file"
         img1 = cv2.imread(img1, cv2.IMREAD_GRAYSCALE)
@@ -39,7 +41,9 @@ def get_hist_score(img1: Union[str, np.ndarray], img2: Union[str, np.ndarray]) -
     return cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
 
 
-def get_ssim_score(img1: Union[str, np.ndarray], img2: Union[str, np.ndarray]) -> float:
+def get_ssim_score(
+    img1: Union[str, np.ndarray], img2: Union[str, np.ndarray]
+) -> float:
     if isinstance(img1, str):
         assert os.path.exists(img1), "non-existent file"
         img1 = cv2.imread(img1, cv2.IMREAD_GRAYSCALE)

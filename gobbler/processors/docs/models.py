@@ -6,7 +6,7 @@ from typing import Optional
 
 from agentic_doc.common import ChunkType
 
-from core.processors.interfaces import BaseFile, DBEntity
+from gobbler.processors.interfaces import BaseFile, DBEntity
 
 Position = namedtuple("Position", ["top", "right", "bottom", "left"])
 

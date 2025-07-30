@@ -10,21 +10,21 @@ from typing import Optional, Union
 import cv2
 from openai import AzureOpenAI
 
-import core.constants as c
-import core.cred as cred
-from core.logger import logger
-from core.processors.image.core import ImageProcessor
-from core.processors.image.models import Image
-from core.processors.image.utils import SceneType
-from core.processors.interfaces import BaseProcessor
-from core.processors.video.models import Span
-from core.processors.video.utils import (
+import gobbler.constants as c
+import gobbler.cred as cred
+from gobbler.logger import logger
+from gobbler.processors.image.core import ImageProcessor
+from gobbler.processors.image.models import Image
+from gobbler.processors.image.utils import SceneType
+from gobbler.processors.interfaces import BaseProcessor
+from gobbler.processors.video.models import Span
+from gobbler.processors.video.utils import (
     get_frame_info,
     get_hist_score,
     get_ssim_score,
     topic_sys_msg,
 )
-from core.utils import (
+from gobbler.utils import (
     dump_usage_data,
     get_file_metadata,
     get_usage_file,

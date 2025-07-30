@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 import appdirs
 import requests
 
-import core.meta as meta
+import gobbler.meta as meta
 
 
 def temp_file(suffix: str, length: int = 10) -> str:

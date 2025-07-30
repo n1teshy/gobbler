@@ -7,13 +7,13 @@ import requests
 from agentic_doc.parse import parse
 from keybert import KeyBERT
 
-import core.constants as c
-import core.cred as cred
-from core.logger import logger
-from core.processors.docs.models import DocumentObject, Position
-from core.processors.docs.utils import office_to_pdf
-from core.processors.interfaces import BaseProcessor
-from core.utils import (
+import gobbler.constants as c
+import gobbler.cred as cred
+from gobbler.logger import logger
+from gobbler.processors.docs.models import DocumentObject, Position
+from gobbler.processors.docs.utils import office_to_pdf
+from gobbler.processors.interfaces import BaseProcessor
+from gobbler.utils import (
     dump_usage_data,
     get_file_metadata,
     get_usage_file,

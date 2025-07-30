@@ -12,7 +12,7 @@
 
 #### spans
 
-- `uri:` VARCHAR(1024) - unique resource identifier for the span
+- `uri:` VARCHAR(1024) - unique resource identifier for the video (source)
 - `id:` INT64 - primary key, auto-incremented
 - `mime_type:` VARCHAR(128) - media type of the resource
 - `size:` INT64 - size of the resource in bytes
@@ -47,7 +47,7 @@
 
 #### document_objects
 
-- `uri:` VARCHAR(1024) - unique resource identifier for the document object
+- `uri:` VARCHAR(1024) - unique resource identifier for the source document
 - `id:` INT64 - primary key, auto-incremented
 - `mime_type:` VARCHAR(128) - media type of the document object
 - `size:` INT64 - size of the object in bytes
@@ -64,13 +64,37 @@
 
 ---
 
+#### Getting started
+- Ensure [ffmpeg](https://ffmpeg.org/download.html) is installed (skip if you don't need video processing).
+- Build and run `Dockerfile.converter`.
+  ```bash
+  cd <project_directory>
+  docker build -t <image_name> .
+  docker run -d -p 8000:8000 <image_name>
+  ```
+- Install Gobbler.
+  ```bash
+  pip install git+https://dev.azure.com/Zifo/AIdeate%20and%20AIterate/_git/Multi-Modal%20Data%20Ingestion%20Pipeline
+  ```
+- Initialize Gobbler.
+  ```bash
+  from gobbler import init
+  init()
+  ```
+- Search away.
+  ```bash
+  from gobbler import search_images
+  images = search_images(query="cat on a mat")
+
+---
+
 #### Core functions exposed to user
 
 There are `8` core functions to insert and search for information.
 
 ---
 
-#### `1. from core.db.utils import init`
+#### `1. from gobbler import init`
 
 ```python
 def init():
@@ -92,9 +116,9 @@ Some parameters are common to all core functions, they are explained here to red
 - `version:` Version of the file being uploaded, default is `int(<modification_timestamp_of_the_file>)`.
 - `processor:` Images, videos and documents have specific processor classes, this parameters helps the user pass a custom processor instance to be used configured to their needs, a processor instance with generic config is used otherwise.
 
-  - for images, use `from core.processors.image.core import ImageProcessor`
-  - for videos, use `from core.processors.video.core import VideoProcessor`
-  - for images, use `from core.processors.docs.core import DocumentProcessor`
+  - for images, use `from gobbler.processors.image.core import ImageProcessor`
+  - for videos, use `from gobbler.processors.video.core import VideoProcessor`
+  - for images, use `from gobbler.processors.docs.core import DocumentProcessor`
 
 - `extra_fields:` Dynamic fields.
 - `download_headers:` HTTP headers used for downloading the URI's content if it is an http/s link.
@@ -115,7 +139,7 @@ Some parameters are common to all core functions, they are explained here to red
 
 ---
 
-#### `2. from core.db import ingest_image`
+#### `2. from gobbler import ingest_image`
 
 ```python
 def ingest_image(
@@ -130,10 +154,10 @@ def ingest_image(
 ) -> Image:
 ```
 
-- `scene:` Category of the content in the image, this helps choose a specific prompt to extract the content, e.g. if it's a diagram, the prompt empazises prompt specific instructions. Should be an attribute of the `core.processors.image.utils.SceneType` enum.
+- `scene:` Category of the content in the image, this helps choose a specific prompt to extract the content, e.g. if it's a diagram, the prompt empazises prompt specific instructions. Should be an attribute of the `gobbler.processors.image.utils.SceneType` enum.
 - `span_id:` Images may be linked to a span, this links the image being processed to a span. e.g. the image is a screenshot from a video. This would rarely be used directly.
 
-#### `3. from core.db import search_images`
+#### `3. from gobbler import search_images`
 
 ```python
 def search_images(
@@ -154,12 +178,12 @@ Returns a list of tuples, the first element of the tuples is cosine score when `
 
 Parameters:
 
-- `scene:` Filter by image category, must be an attribute of `core.processors.image.utils.SceneType` enum.
+- `scene:` Filter by image category, must be an attribute of `gobbler.processors.image.utils.SceneType` enum.
 - `span_id:` This returns images linked to a span.
 
 ---
 
-#### `4. from core.db import ingest_video`
+#### `4. from gobbler import ingest_video`
 
 ```python
 def ingest_video(
@@ -174,7 +198,7 @@ def ingest_video(
 
 > Look at common parameters of ingest\_\* above.
 
-#### `5. from core.db import search_spans`
+#### `5. from gobbler import search_spans`
 
 ```python
 def search_spans(
@@ -198,7 +222,7 @@ Parameters:
 
 ---
 
-### `6. from core.db import ingest_document`
+### `6. from gobbler import ingest_document`
 
 ```python
 def ingest_document(
@@ -213,7 +237,7 @@ def ingest_document(
 
 > Look at common parameters of ingest\_\* above.
 
-### `7. from core.db import search_document_objects`
+### `7. from gobbler import search_document_objects`
 
 ```python
 def search_document_objects(
@@ -236,7 +260,7 @@ Parameters:
 - `page:` Index of a page of documents, matches against the `page` field of `document_objects` collection, starts from 0.
 - `type:` Type of object from the document, can be `text`, `table`, `figure` or `marginalia`, must be an attribute of the `agentic_doc.common.ChunkType` enum.
 
-#### `8. from core.db import o_search`
+#### `8. from gobbler import o_search`
 ```python
 def o_search(
     query: Optional[str] = None,

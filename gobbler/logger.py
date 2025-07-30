@@ -1,7 +1,7 @@
 import logging
 import sys
 
-import core.meta as meta
+import gobbler.meta as meta
 
 logger = logging.getLogger(meta.name)
 logger.setLevel(logging.INFO)

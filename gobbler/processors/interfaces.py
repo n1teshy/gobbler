@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-import core.constants as c
+import gobbler.constants as c
 
 
 class BaseProcessor(ABC):

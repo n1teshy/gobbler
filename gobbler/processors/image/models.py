@@ -1,8 +1,8 @@
 import json
 from typing import Optional
 
-from core.processors.image.utils import SceneType
-from core.processors.interfaces import BaseFile, DBEntity
+from gobbler.processors.image.utils import SceneType
+from gobbler.processors.interfaces import BaseFile, DBEntity
 
 
 class Image(DBEntity, BaseFile):

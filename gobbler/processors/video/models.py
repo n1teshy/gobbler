@@ -1,7 +1,7 @@
 import json
 
-from core.processors.image.models import Image
-from core.processors.interfaces import BaseFile, DBEntity
+from gobbler.processors.image.models import Image
+from gobbler.processors.interfaces import BaseFile, DBEntity
 
 
 class Span(DBEntity, BaseFile):
