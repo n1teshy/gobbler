@@ -29,12 +29,14 @@ class DocumentProcessor(BaseProcessor):
             logger.warning(
                 "OFFICE_CONVERSION_URL is not set, you'll have a hard time with non-PDF files"
             )
-
-        try:
-            url = urljoin(cred.OFFICE_CONVERSION_SERVER, "/ping")
-            assert requests.get(url).status_code == 200
-        except Exception as e:
-            logger.warning(f"Office conversion server is not reachable: {e}")
+        else:
+            try:
+                url = urljoin(cred.OFFICE_CONVERSION_SERVER, "/ping")
+                assert requests.get(url).status_code == 200
+            except Exception as e:
+                logger.warning(
+                    f"Office conversion server is not reachable: {e}"
+                )
 
         self.keybert = KeyBERT("bert-base-nli-mean-tokens")
         self.usage_file = get_usage_file(c.USAGE_LAI_OCR)
