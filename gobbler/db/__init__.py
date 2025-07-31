@@ -157,6 +157,8 @@ def search_images(
     Search for images in the database using metadata and/or vector search.
 
     Parameters:
+        query (Optional[str | list[float]]): Natural language query or
+            vector representation of it for cosine similarity search.
         mime_type (Optional[str | list[float]]): Filter by MIME type.
         uploaded_by (Optional[str]): Filter by uploader.
         description (Optional[str]): Search by description (vector search if
@@ -415,10 +417,12 @@ def search_spans(
     Search for video spans in the database using metadata and/or vector search.
 
     Parameters:
-        short_query (Optional[str | list[float]]): Search by short description
-            (vector search if provided).
-        long_query (Optional[str | list[float]]): Search by long description
-            (vector search if provided).
+        short_query (Optional[str | list[float]]): Natural language query or
+            vector representation of it to match against span's
+            `short_description`.
+        long_query (Optional[str | list[float]]): Natural language query or
+            vector representation of it to match against span's
+            `long_description`.
         mime_type (Optional[str]): Filter by MIME type.
         keywords (Optional[list[str]]): Filter by keywords.
         uploaded_before (Optional[int]): Filter by upload time (before).
@@ -638,7 +642,8 @@ def search_document_objects(
         vector search.
 
     Parameters:
-        query (Optional[str | list[float]): Search by cosine similarity.
+        query (Optional[str | list[float]]): Natural language query or
+            vector representation of it for cosine similarity search.
         mime_type (Optional[str]): Filter by MIME type.
         page (Optional[int]): Filter by page number.
         chunk_type (Optional[ChunkType]): Filter by chunk type.
