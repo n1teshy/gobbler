@@ -66,25 +66,28 @@
 
 #### Getting started
 - Ensure [ffmpeg](https://ffmpeg.org/download.html) is installed (skip if you don't need video processing).
-- Build and run `Dockerfile.converter`, used to convert documents to PDF for easier processing.
+
+- Build and run `Dockerfile.converter`, used to convert documents to PDF for easier processing (skip if you don't need non-PDF document processing).
   ```bash
   cd <project_directory>
   docker build -f Dockerfile.converter -t <image_name> .
   docker run -d -p 8000:8000 <image_name>
   ```
+
 - Install Gobbler.
   ```bash
   pip install "git+https://dev.azure.com/Zifo/AIdeate%20and%20AIterate/_git/Multi-Modal%20Data%20Ingestion%20Pipeline"
   ```
   > NOTE: the code may not have been merged to main branch, try "git+https://dev.azure.com/Zifo/AIdeate%20and%20AIterate/_git/Multi-Modal%20Data%20Ingestion%20Pipeline@dev/nitesh" in case installation fails
 
-- Ensure all environment variables are set.
+- Ensure all environment variables are set, read `env_instructions.txt` for more info.
 
 - Initialize Gobbler.
   ```bash
   from gobbler import init
   init()
   ```
+
 - Search away.
   ```bash
   from gobbler import search_images
@@ -101,19 +104,18 @@ There are `8` core functions to insert and search for information.
 #### `1. from gobbler import init`
 
 ```python
-def init():
-    ...
+def init() -> None:
 ```
 
-`init()` initializes the Milvus connection and other utilities, it must be called for before both insertions and searches.
+`init()` initializes the Milvus connection and other utilities, it must be called once before calling any search/ingestion functions, this function is [idempotent](https://www.google.com/search?q=idempotent+meaning).
 
 ---
 
 #### Common function parameters
 
-Some parameters are common to all core functions, they are explained here to reduce redundant lines of text.
+Some parameters are common to all core functions, they are explained here to reduce redundant lines of text, `ingest_*` parameters apply to all functions for content ingestion, `search_*` apply to all functions for search.
 
-> _common parameters for ingest\_\* functions_
+> _common parameters for `ingest_*` functions_
 
 - `uri:` The path to the file being ingested, can be a local path or an http/s link.
 - `uploaded_by:` ID of the user uploading the input file, default is `system`.
@@ -128,7 +130,7 @@ Some parameters are common to all core functions, they are explained here to red
 - `download_headers:` HTTP headers used for downloading the URI's content if it is an http/s link.
 - `throw_if_duplicate:` If set to `True`, this parameters makes the function throw a `ValueError` when the file being processed already exists in the database, the file's SHA-256 hash is used to check for duplicacy.
 
-> _common parameters for search\_\* functions_
+> _common parameters for `search_*` functions_
 
 - `query:` Natural language query.
 - `uploaded_by:` ID of the user who uploaded the file.
@@ -160,6 +162,9 @@ def ingest_image(
 
 - `scene:` Category of the content in the image, this helps choose a specific prompt to extract the content, e.g. if it's a diagram, the prompt empazises prompt specific instructions. Should be an attribute of the `gobbler.processors.image.utils.SceneType` enum.
 - `span_id:` Images may be linked to a span, this links the image being processed to a span. e.g. the image is a screenshot from a video. This would rarely be used directly.
+  > Look at common parameters of `ingest_*` above for other parameters.
+
+---
 
 #### `3. from gobbler import search_images`
 
@@ -184,6 +189,7 @@ Parameters:
 
 - `scene:` Filter by image category, must be an attribute of `gobbler.processors.image.utils.SceneType` enum.
 - `span_id:` This returns images linked to a span.
+  > Look at common parameters of `search_*` above for other parameters.
 
 ---
 
@@ -200,7 +206,9 @@ def ingest_video(
 ) -> list[Span]:
 ```
 
-> Look at common parameters of ingest\_\* above.
+> Look at common parameters of `ingest_*` above.
+
+---
 
 #### `5. from gobbler import search_spans`
 
@@ -223,6 +231,7 @@ Parameters:
 
 - `short_query:` This matches against the field `short_description` of the spans collection.
 - `long_query:` This matches against the field `long_description` of the spans collection.
+  > Look at common parameters of `search_*` above for other parameters.
 
 ---
 
@@ -238,8 +247,9 @@ def ingest_document(
     throw_if_duplicate: bool = True,
 ) -> list[DocumentObject]:
 ```
+> Look at common parameters of `ingest_*` above.
 
-> Look at common parameters of ingest\_\* above.
+---
 
 ### `7. from gobbler import search_document_objects`
 
@@ -263,6 +273,9 @@ Parameters:
 
 - `page:` Index of a page of documents, matches against the `page` field of `document_objects` collection, starts from 0.
 - `type:` Type of object from the document, can be `text`, `table`, `figure` or `marginalia`, must be an attribute of the `agentic_doc.common.ChunkType` enum.
+  > Look at common parameters of `search_*` above for other parameters.
+
+---
 
 #### `8. from gobbler import o_search`
 ```python
@@ -275,9 +288,9 @@ def o_search(
     limit: int = 10,
 ) -> list[tuple[float | None, Union[Image, Span, DocumentObject]]]:
 ```
-> Look at common parameters of search\_\* above.
+> Look at common parameters of `search_*` above.
 
-Returns a list of tuples where the first element of the tuple is a cosine score and the second may be an `Image`, `Span` or `DocumentObject`.
+Short for Omni search, this function will look for relevant content in all collections and return `limit` tuples where the first element of the tuple is a cosine score and the second may be an `Image`, `Span` or `DocumentObject`.
 
 ---
 

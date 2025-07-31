@@ -26,7 +26,7 @@ class DocumentProcessor(BaseProcessor):
         if cred.LANDINGAI_KEY is None:
             raise EnvironmentError("LandingAI key is missing")
         if cred.OFFICE_CONVERSION_SERVER is None:
-            warnings.warn(
+            logger.warning(
                 "OFFICE_CONVERSION_URL is not set, you'll have a hard time with non-PDF files"
             )
 
@@ -34,7 +34,7 @@ class DocumentProcessor(BaseProcessor):
             url = urljoin(cred.OFFICE_CONVERSION_SERVER, "/ping")
             assert requests.get(url).status_code == 200
         except Exception as e:
-            logger.error(f"Office conversion server is not reachable: {e}")
+            logger.warning(f"Office conversion server is not reachable: {e}")
 
         self.keybert = KeyBERT("bert-base-nli-mean-tokens")
         self.usage_file = get_usage_file(c.USAGE_LAI_OCR)

@@ -21,7 +21,7 @@ doc_obj_collection: Collection | None = None
 embedder: AzureEmbedder | None = None
 
 
-def init():
+def init() -> None:
     global spans_collection, images_collection, doc_obj_collection, embedder
 
     if embedder is None:
