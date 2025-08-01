@@ -268,6 +268,7 @@ def ingest_video(
     uploaded_by: str = "system",
     version: Optional[float] = None,
     processor: Optional[VideoProcessor] = None,
+    audio_only: bool = False,
     download_headers: Optional[dict[str, str]] = None,
     throw_if_duplicate: bool = True,
 ) -> list[Span]:
@@ -285,6 +286,8 @@ def ingest_video(
             time).
         processor (Optional[VideoProcessor]): Custom video processor instance.
             Defaults to None.
+        audio_only (bool): If True, processes only the audio track. Defaults to
+            False.
         download_headers (Optional[dict[str, str]]): Headers for downloading the
             URI content.
         throw_if_duplicate (bool): If True, raises error if video with same
@@ -309,7 +312,7 @@ def ingest_video(
                 raise ValueError("this video already exists")
 
         processor = processor or get_video_processor()
-        spans = processor.process(path)
+        spans = processor.process(path, audio_only=audio_only)
         if downloaded:
             for span in spans:
                 span.uri = uri

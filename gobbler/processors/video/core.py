@@ -318,7 +318,9 @@ class VideoProcessor(BaseProcessor):
                     span.frames.append(processed_images[frame_idx])
                 frame_idx += 1
 
-    def process(self, path: str, show_progress: bool = False) -> list[Span]:
+    def process(
+        self, path: str, audio_only: bool = False, show_progress: bool = False
+    ) -> list[Span]:
         if not os.path.exists(path):
             raise FileNotFoundError(f"Video file not found: {path}")
 
@@ -326,9 +328,6 @@ class VideoProcessor(BaseProcessor):
         if not metadata["mime_type"].startswith("video/"):
             raise ValueError(f"Doesn't seem to be a video {path}")
 
-        frames, frame_time_ranges, dur = self.extract_frames(
-            path, show_progress
-        )
         if show_progress:
             logger.info(f"--- transcribing ---")
         txpn_segments = self.transcribe(path)
@@ -351,6 +350,12 @@ class VideoProcessor(BaseProcessor):
             )
 
         spans = [span for span in spans if span.end - span.start >= self.spf]
+        if audio_only:
+            return spans
+
+        frames, frame_time_ranges, dur = self.extract_frames(
+            path, show_progress
+        )
         self.assign_frames(spans, frames, frame_time_ranges, show_progress)
         return spans
 
