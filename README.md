@@ -1,5 +1,9 @@
 ### Gobbler
 
+<p align="center">
+  <img src="https://dev.azure.com/Zifo/b0ba8dd6-79d2-4d03-8df4-f8407bc209de/_apis/git/repositories/5e6eeddf-d308-44a9-876e-1f4d3d6159b7/items?path=/assets/1.png&versionDescriptor%5BversionOptions%5D=0&versionDescriptor%5BversionType%5D=0&versionDescriptor%5Bversion%5D=dev/nitesh&resolveLfs=true&%24format=octetStream&api-version=5.0" alt="Poster Image" />
+</p>
+
 #### Glossary
 
 - `Span:` A segment of a video.
@@ -65,9 +69,11 @@
 ---
 
 #### Getting started
+
 - Ensure [ffmpeg](https://ffmpeg.org/download.html) is installed (skip if you don't need video processing).
 
 - Build and run `Dockerfile.converter`, used to convert documents to PDF for easier processing (skip if you don't need non-PDF document processing).
+
   ```bash
   cd <project_directory>
   docker build -f Dockerfile.converter -t <image_name> .
@@ -75,14 +81,17 @@
   ```
 
 - Install Gobbler.
+
   ```bash
   pip install "git+https://dev.azure.com/Zifo/AIdeate%20and%20AIterate/_git/Multi-Modal%20Data%20Ingestion%20Pipeline"
   ```
+
   > NOTE: the code may not have been merged to main branch, try "git+https://dev.azure.com/Zifo/AIdeate%20and%20AIterate/_git/Multi-Modal%20Data%20Ingestion%20Pipeline@dev/nitesh" in case installation fails
 
 - Ensure all environment variables are set, read `env_instructions.txt` for more info.
 
 - Initialize Gobbler.
+
   ```bash
   from gobbler import init
   init()
@@ -92,6 +101,7 @@
   ```bash
   from gobbler import search_images
   images = search_images(query="cat on a mat")
+  ```
 
 ---
 
@@ -115,7 +125,7 @@ def init() -> None:
 
 Some parameters are common to all core functions, they are explained here to reduce redundant lines of text, `ingest_*` parameters apply to all functions for content ingestion, `search_*` apply to all functions for search.
 
-> _common parameters for `ingest_*` functions_
+> _common parameters for `ingest_\*` functions\_
 
 - `uri:` The path to the file being ingested, can be a local path or an http/s link.
 - `uploaded_by:` ID of the user uploading the input file, default is `system`.
@@ -130,7 +140,7 @@ Some parameters are common to all core functions, they are explained here to red
 - `download_headers:` HTTP headers used for downloading the URI's content if it is an http/s link.
 - `throw_if_duplicate:` If set to `True`, this parameters makes the function throw a `ValueError` when the file being processed already exists in the database, the file's SHA-256 hash is used to check for duplicacy.
 
-> _common parameters for `search_*` functions_
+> _common parameters for `search_\*` functions\_
 
 - `query:` Natural language query.
 - `uploaded_by:` ID of the user who uploaded the file.
@@ -247,6 +257,7 @@ def ingest_document(
     throw_if_duplicate: bool = True,
 ) -> list[DocumentObject]:
 ```
+
 > Look at common parameters of `ingest_*` above.
 
 ---
@@ -278,6 +289,7 @@ Parameters:
 ---
 
 #### `8. from gobbler import o_search`
+
 ```python
 def o_search(
     query: Optional[str] = None,
@@ -288,6 +300,7 @@ def o_search(
     limit: int = 10,
 ) -> list[tuple[float | None, Union[Image, Span, DocumentObject]]]:
 ```
+
 > Look at common parameters of `search_*` above.
 
 Short for Omni search, this function will look for relevant content in all collections and return `limit` tuples where the first element of the tuple is a cosine score and the second may be an `Image`, `Span` or `DocumentObject`.
@@ -295,4 +308,5 @@ Short for Omni search, this function will look for relevant content in all colle
 ---
 
 #### Data models
+
 `Image`, `Span` and `DocumentObject` have the same fields as their corresponding collections schemas, except for any vector fields. Data models also expose a `to_json()` method to get the data as a JSON object.
