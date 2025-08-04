@@ -69,19 +69,22 @@ def dump_usage_data(data: dict, file: str) -> None:
         json.dump(data, f, indent=4)
 
 
-def uri_to_file(
-    uri: str, headers: Optional[dict] = None, chunk_size: int = 8192
+def download(
+    url: str,
+    path: Optional[str] = None,
+    headers: Optional[dict] = None,
+    chunk_size: int = 8192,
 ) -> tuple[bool, str]:
-    parsed = urlparse(uri)
+    parsed = urlparse(url)
     if parsed.scheme not in {"http", "https", "file", ""}:
-        raise ValueError(f"Unsupported URI scheme: {uri}")
+        raise ValueError(f"Unsupported URI scheme: {url}")
     if parsed.scheme in {"http", "https"}:
-        temp_path = temp_file(suffix=os.path.splitext(parsed.path)[-1])
-        with requests.get(uri, stream=True, headers=headers) as response:
+        path = path or temp_file(suffix=os.path.splitext(parsed.path)[-1])
+        with requests.get(url, stream=True, headers=headers) as response:
             response.raise_for_status()
-            with open(temp_path, "wb") as out_file:
+            with open(path, "wb") as out_file:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     if chunk:
                         out_file.write(chunk)
-        return True, temp_path
-    return False, uri
+        return True, path
+    return False, url

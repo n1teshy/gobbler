@@ -17,7 +17,7 @@ from gobbler.processors.image.utils import (
 )
 from gobbler.processors.video.core import VideoProcessor
 from gobbler.processors.video.models import Span
-from gobbler.utils import hash_file, uri_to_file
+from gobbler.utils import download, hash_file
 
 _image_processor: ImageProcessor | None = None
 _video_processor: VideoProcessor | None = None
@@ -82,7 +82,7 @@ def ingest_image(
     Returns:
         Image: Image object with database ID and updated attributes.
     """
-    downloaded, path = uri_to_file(uri, headers=download_headers)
+    downloaded, path = download(uri, headers=download_headers)
     try:
         if throw_if_duplicate:
             existing_image = db_utils.images_collection.query(
@@ -297,7 +297,7 @@ def ingest_video(
         list[Span]: List of Span objects with database IDs and updated
             attributes.
     """
-    downloaded, path = uri_to_file(uri, headers=download_headers)
+    downloaded, path = download(uri, headers=download_headers)
     inserted_span_ids = []
     inserted_image_ids = []
 
@@ -557,7 +557,7 @@ def ingest_document(
     Returns:
         list[DocumentObject]: List of DocumentObject instances.
     """
-    downloaded, path = uri_to_file(uri, headers=download_headers)
+    downloaded, path = download(uri, headers=download_headers)
     inserted_ids = []
 
     try:
