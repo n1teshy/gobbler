@@ -24,7 +24,7 @@ setup(
         "python-dotenv",
         "transformers==4.40.0",
         "opencv-python==4.10.0.84",
-        "scikit-image==0.20.0",
+        "scikit-image",
         "numpy==1.26.0",
         "pydantic",
         "openai==1.88.0",
