@@ -22,7 +22,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "python-dotenv",
-        "transformers==4.40.0",
+        "transformers==4.54.1",
         "opencv-python==4.10.0.84",
         "scikit-image",
         "numpy",
@@ -34,6 +34,9 @@ setup(
         "appdirs==1.4.4",
         "pymilvus==2.6.0b0",
         "agentic-doc==0.3.1",
+        "tokenizers==0.21.4",
+        "doclayout_yolo==0.0.4",
+        "pynvml==12.0.0",
     ],
     classifiers=[
         "Intended Audience :: Developers",

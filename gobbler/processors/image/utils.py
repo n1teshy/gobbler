@@ -3,9 +3,9 @@ from enum import Enum
 from typing import Union
 
 from PIL import Image
-from transformers import CLIPModel, CLIPProcessor
 
 import gobbler.globals as glb
+from gobbler.models.core import run_clip
 
 clip_utils = (None, None)
 image_categories = [
@@ -41,19 +41,6 @@ idx_2_scenes = [
 scenes_2_idx = {scene: idx for idx, scene in enumerate(idx_2_scenes)}
 
 
-def get_clip_utils() -> tuple[CLIPModel, CLIPProcessor]:
-    global clip_utils
-
-    if None in clip_utils:
-        model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
-        processor = CLIPProcessor.from_pretrained(
-            "openai/clip-vit-large-patch14"
-        )
-        clip_utils = (model, processor)
-
-    return clip_utils
-
-
 def idx_to_scene_type(idx: int) -> SceneType:
     return idx_2_scenes[idx]
 
@@ -68,17 +55,7 @@ def classify_images(
     for idx in range(len(paths_or_images)):
         if type(paths_or_images[idx]) is str:
             paths_or_images[idx] = Image.open(paths_or_images[idx])
-
-    model, processor = get_clip_utils()
-    inputs = processor(
-        text=image_categories,
-        images=paths_or_images,
-        return_tensors="pt",
-        padding=True,
-    )
-    outputs = model(**inputs)
-    logits_per_image = outputs.logits_per_image
-    probs_per_image = logits_per_image.softmax(dim=1).tolist()
+    probs_per_image = run_clip(image_categories, paths_or_images)
     return [
         sorted(
             [(idx_to_scene_type(idx), prob) for idx, prob in enumerate(probs)],
