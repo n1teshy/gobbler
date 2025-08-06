@@ -82,7 +82,10 @@ def ingest_image(
     Returns:
         Image: Image object with database ID and updated attributes.
     """
-    downloaded, path = download(uri, headers=download_headers)
+    if os.path.exists(uri):
+        downloaded, path = False, uri
+    else:
+        downloaded, path = download(uri, headers=download_headers)
     try:
         if throw_if_duplicate:
             existing_image = db_utils.images_collection.query(
@@ -297,7 +300,10 @@ def ingest_video(
         list[Span]: List of Span objects with database IDs and updated
             attributes.
     """
-    downloaded, path = download(uri, headers=download_headers)
+    if os.path.exists(uri):
+        downloaded, path = False, uri
+    else:
+        downloaded, path = download(uri, headers=download_headers)
     inserted_span_ids = []
     inserted_image_ids = []
 
@@ -557,7 +563,10 @@ def ingest_document(
     Returns:
         list[DocumentObject]: List of DocumentObject instances.
     """
-    downloaded, path = download(uri, headers=download_headers)
+    if os.path.exists(uri):
+        downloaded, path = False, uri
+    else:
+        downloaded, path = download(uri, headers=download_headers)
     inserted_ids = []
 
     try:
