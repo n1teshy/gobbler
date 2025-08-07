@@ -4,17 +4,15 @@ from collections import namedtuple
 from html import unescape
 from typing import Optional
 
-from agentic_doc.common import ChunkType
-
 from gobbler.processors.interfaces import BaseFile, DBEntity
 
-Position = namedtuple("Position", ["top", "right", "bottom", "left"])
+Position = namedtuple("Position", ["x1", "y1", "x2", "y2"])
 
 
 class DocumentObject(DBEntity, BaseFile):
     page: int
     position: Position
-    type: ChunkType
+    type: Optional[str]
     content: str
     keywords: list[str] = []
 

@@ -33,7 +33,6 @@ setup(
         "requests",
         "appdirs==1.4.4",
         "pymilvus==2.6.0b0",
-        "agentic-doc==0.3.1",
         "tokenizers==0.21.4",
         "doclayout_yolo==0.0.4",
         "pynvml==12.0.0",

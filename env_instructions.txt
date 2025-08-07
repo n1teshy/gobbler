@@ -1,8 +1,7 @@
 # BASE: API endpoint's base, e.g. https://<your_name>.openai.azure.com
 # DEPLOYMENT: All Azure deployments have a deplyment ID/name
-# VLM: short for visual language model, any model that can take text + image, like GPT-4o
+# VLM: short for vision language model, any model that can take text + image, like GPT-4o
 # EMB: short for embedding
-# VISION_AGENT_API_KEY: Landing AI key
 # OFFICE_CONVERSION_SERVER: URL for the document conversion server, e.g. http://localhost:8000
 
 AZURE_LLM_KEY=
@@ -33,7 +32,5 @@ MILVUS_HOST=
 MILVUS_PORT=
 MILVUS_USER=
 MILVUS_PASSWORD=
-
-VISION_AGENT_API_KEY=
 
 OFFICE_CONVERSION_SERVER=

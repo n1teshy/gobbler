@@ -1,20 +1,18 @@
 import os
 from typing import Any, Optional, Union
 
-from agentic_doc.common import ChunkType
-
 import gobbler.constants as c
 import gobbler.db.utils as db_utils
+from gobbler.models.utils import (
+    ClipScene,
+    clip_scene_to_idx,
+    idx_to_clip_scene,
+)
 from gobbler.processors.docs.core import DocumentProcessor
 from gobbler.processors.docs.models import DocumentObject
 from gobbler.processors.docs.utils import chunk_type_to_idx, idx_to_chunk_type
 from gobbler.processors.image.core import ImageProcessor
 from gobbler.processors.image.models import Image
-from gobbler.processors.image.utils import (
-    SceneType,
-    idx_to_scene_type,
-    scene_type_to_idx,
-)
 from gobbler.processors.video.core import VideoProcessor
 from gobbler.processors.video.models import Span
 from gobbler.utils import download, hash_file
@@ -53,7 +51,7 @@ def ingest_image(
     extra_fields: Optional[dict[str, Any]] = None,
     uploaded_by: str = "system",
     version: Optional[float] = None,
-    scene: Optional[SceneType] = None,
+    scene: Optional[ClipScene] = None,
     span_id: Optional[int] = None,
     processor: Optional[ImageProcessor] = None,
     download_headers: Optional[dict[str, str]] = None,
@@ -69,7 +67,7 @@ def ingest_image(
         uploaded_by (str): User who uploaded the image. Defaults to 'system'.
         version (Optional[float]): Version number (defaults to file
             modification time).
-        scene (Optional[SceneType]): Scene type (computed using CLIP if not
+        scene (Optional[ClipScene]): Scene type (computed using CLIP if not
             provided).
         span_id (Optional[int]): Optional span ID to link image to.
         processor (Optional[ImageProcessor]): Custom image processor instance.
@@ -115,7 +113,7 @@ def ingest_image(
             c.DB_FLD_HASH: processed_image.hash,
             c.IMG_FLD_SHAPE: processed_image.shape,
             c.IMG_FLD_SCENE: (
-                scene_type_to_idx(processed_image.scene)
+                clip_scene_to_idx(processed_image.scene)
                 if processed_image.scene
                 else None
             ),
@@ -147,7 +145,7 @@ def search_images(
     query: Optional[Union[str, list[float]]] = None,
     mime_type: Optional[str] = None,
     uploaded_by: Optional[str] = None,
-    scene: Optional[SceneType] = None,
+    scene: Optional[ClipScene] = None,
     keywords: Optional[list[str]] = None,
     span_id: Optional[int] = None,
     uploaded_before: Optional[int] = None,
@@ -208,7 +206,7 @@ def search_images(
     if uploaded_by:
         exprs.append(f'{c.DB_FLD_UPLOADED_BY} == "{uploaded_by}"')
     if scene is not None:
-        exprs.append(f"{c.IMG_FLD_SCENE} == {scene_type_to_idx(scene)}")
+        exprs.append(f"{c.IMG_FLD_SCENE} == {clip_scene_to_idx(scene)}")
     if span_id is not None:
         exprs.append(f"{c.IMG_FLD_SPAN_ID} == {span_id}")
     if uploaded_before is not None:
@@ -245,7 +243,7 @@ def search_images(
                 continue
             hit_data = hit.entity["entity"]
             if hit_data[c.IMG_FLD_SCENE] is not None:
-                hit_data[c.IMG_FLD_SCENE] = idx_to_scene_type(
+                hit_data[c.IMG_FLD_SCENE] = idx_to_clip_scene(
                     hit_data[c.IMG_FLD_SCENE]
                 )
             images.append((hit.distance, Image(**hit_data)))
@@ -255,7 +253,7 @@ def search_images(
         )
         for hit in hits:
             if hit[c.IMG_FLD_SCENE] is not None:
-                hit[c.IMG_FLD_SCENE] = idx_to_scene_type(hit[c.IMG_FLD_SCENE])
+                hit[c.IMG_FLD_SCENE] = idx_to_clip_scene(hit[c.IMG_FLD_SCENE])
             images.append((None, Image(**hit)))
 
     return images
@@ -641,7 +639,7 @@ def search_document_objects(
     query: Optional[str] = None,
     mime_type: Optional[str] = None,
     page: Optional[int] = None,
-    chunk_type: Optional[ChunkType] = None,
+    chunk_type: Optional[str] = None,
     keywords: Optional[list[str]] = None,
     uploaded_before: Optional[int] = None,
     uploaded_after: Optional[int] = None,
@@ -658,7 +656,7 @@ def search_document_objects(
             vector representation of it for cosine similarity search.
         mime_type (Optional[str]): Filter by MIME type.
         page (Optional[int]): Filter by page number.
-        chunk_type (Optional[ChunkType]): Filter by chunk type.
+        chunk_type (Optional[str]): Filter by chunk type.
         keywords (Optional[list[str]]): Filter by keywords.
         uploaded_before (Optional[int]): Filter by upload time (before).
         uploaded_after (Optional[int]): Filter by upload time (after).

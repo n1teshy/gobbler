@@ -13,9 +13,8 @@ from openai import AzureOpenAI
 import gobbler.constants as c
 import gobbler.cred as cred
 from gobbler.logger import logger
+from gobbler.models.utils import ClipScene
 from gobbler.processors.image.core import ImageProcessor
-from gobbler.processors.image.models import Image
-from gobbler.processors.image.utils import SceneType
 from gobbler.processors.interfaces import BaseProcessor
 from gobbler.processors.video.models import Span
 from gobbler.processors.video.utils import (
@@ -39,7 +38,7 @@ class VideoProcessor(BaseProcessor):
         spf: int = c.SECONDS_PER_FRAME,
         ssim_threshold: float = c.SSIM_THRESH,
         hist_threshold: float = c.NON_SCENIC_HIST_THRESH,
-        scene_to_desc: Optional[dict[SceneType, str]] = None,
+        scene_to_desc: Optional[dict[ClipScene, str]] = None,
     ):
         """
         Parameters:
@@ -89,6 +88,24 @@ class VideoProcessor(BaseProcessor):
         self.txpn_usage_data[cred.AZURE_WHISPER_MODEL] = (
             self.txpn_usage_data.get(cred.AZURE_WHISPER_MODEL, {"seconds": 0})
         )
+
+    def get_duration(self, path: str) -> float:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "csv=p=0",
+                path,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return float(result.stdout.strip())
 
     def remove_duplicates_frames(self, files: list[str], show_progress: bool):
         idx = 1
@@ -159,7 +176,7 @@ class VideoProcessor(BaseProcessor):
                     e_second = video_dur
                 time_ranges.append({"start": s_second, "end": e_second})
 
-            return files, time_ranges, no_frames / fps
+            return files, time_ranges
         finally:
             cap.release()
 
@@ -304,7 +321,7 @@ class VideoProcessor(BaseProcessor):
                 >= self.spf
             ):
                 scene = self.image_processor.classify(frames[frame_idx])
-                if scene is not SceneType.VIDEO_CONFERENCE:
+                if scene is not ClipScene.VIDEO_CONFERENCE:
                     if frame_idx not in processed_images:
                         if show_progress:
                             logger.info(
@@ -331,6 +348,7 @@ class VideoProcessor(BaseProcessor):
         if show_progress:
             logger.info(f"--- transcribing ---")
         txpn_segments = self.transcribe(path)
+        dur = self.get_duration(path)
         self.txpn_usage_data[cred.AZURE_WHISPER_MODEL]["seconds"] += dur
         dump_usage_data(self.txpn_usage_data, self.txpn_usage_file)
         topic_time_ranges = self.get_topics(txpn_segments)
@@ -353,9 +371,7 @@ class VideoProcessor(BaseProcessor):
         if audio_only:
             return spans
 
-        frames, frame_time_ranges, dur = self.extract_frames(
-            path, show_progress
-        )
+        frames, frame_time_ranges = self.extract_frames(path, show_progress)
         self.assign_frames(spans, frames, frame_time_ranges, show_progress)
         return spans
 
@@ -389,22 +405,7 @@ class VideoProcessor(BaseProcessor):
                 audio_files.append((full_audio_f, 0.0))
                 return audio_files
 
-            duration_result = subprocess.run(
-                [
-                    "ffprobe",
-                    "-v",
-                    "quiet",
-                    "-show_entries",
-                    "format=duration",
-                    "-of",
-                    "csv=p=0",
-                    full_audio_f,
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            total_duration = float(duration_result.stdout.strip())
+            total_duration = self.get_duration(full_audio_f)
             chunk_duration = (total_duration * MAX_FILE_SIZE) / file_size
             chunk_duration *= 0.9
             current_start = 0

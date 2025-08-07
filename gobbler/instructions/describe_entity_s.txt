@@ -3,3 +3,7 @@ in a way that makes it easy for RAG systems to score/interpret the image by read
 description of it. The response must be a JSON object with fields "description" and "keywords",
 'keywords' must include organizations, projects, people and other core entities/ideas discussed.
 schema: {"description": <string>, "keywords": <string>[]}
+
+NOTE:
+ - do not summarize or explain the content, extract all of it, as it is.
+ - if something is missing, do not output text explaining absence.

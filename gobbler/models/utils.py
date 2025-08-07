@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 
 import appdirs
 import pynvml
@@ -6,6 +7,30 @@ import pynvml
 import gobbler.meta as meta
 from gobbler.logger import logger
 from gobbler.utils import download
+
+
+class ClipScene(str, Enum):
+    VIDEO_CONFERENCE = "video_conference"
+    DIAGRAM = "diagram"
+    TABULAR = "tabular"
+    TEXT = "text"
+
+
+idx_2_scenes = [
+    ClipScene.VIDEO_CONFERENCE,
+    ClipScene.DIAGRAM,
+    ClipScene.TABULAR,
+    ClipScene.TEXT,
+]
+scenes_2_idx = {scene: idx for idx, scene in enumerate(idx_2_scenes)}
+
+
+def idx_to_clip_scene(idx: int) -> ClipScene:
+    return idx_2_scenes[idx]
+
+
+def clip_scene_to_idx(scene_type: ClipScene) -> int:
+    return scenes_2_idx[scene_type]
 
 
 def is_cuda_available() -> bool:

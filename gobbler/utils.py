@@ -1,4 +1,6 @@
+import base64
 import hashlib
+import io
 import json
 import mimetypes
 import os
@@ -6,11 +8,12 @@ import random
 import string
 import tempfile
 import time
-from typing import Optional
+from typing import Optional, Union
 from urllib.parse import urlparse
 
 import appdirs
 import requests
+from PIL import Image
 
 import gobbler.meta as meta
 
@@ -88,3 +91,31 @@ def download(
                         out_file.write(chunk)
         return True, path
     return False, url
+
+
+def make_pil_images(
+    paths_or_images: list[Union[str, io.BytesIO, Image.Image]]
+) -> list[Image.Image]:
+    return [
+        Image.open(poi) if type(poi) in (str, io.BytesIO) else poi
+        for poi in paths_or_images
+    ]
+
+
+def stringify_image(img: Union[str, Image.Image]) -> str:
+    if isinstance(img, str):
+        mime = get_mime_type(img)
+        if mime is None:
+            raise ValueError(f"Unsupported file {img}")
+        b64 = base64.b64encode(open(img, "rb").read()).decode("utf-8")
+    else:
+        temp_path = temp_file(".png")
+        try:
+            img.save(temp_path, "PNG")
+            mime = "image/png"
+            b64 = base64.b64encode(open(temp_path, "rb").read()).decode(
+                "utf-8"
+            )
+        finally:
+            os.unlink(temp_path)
+    return f"data:{mime};base64,{b64}"
