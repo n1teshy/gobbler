@@ -307,12 +307,12 @@ def ingest_video(
 
     try:
         if throw_if_duplicate:
-            existing_image = db_utils.spans_collection.query(
+            existing_video = db_utils.spans_collection.query(
                 expr=f'{c.DB_FLD_HASH} == "{hash_file(path)}"',
                 output_fields=[c.DB_FLD_ID],
                 limit=1,
             )
-            if existing_image:
+            if existing_video:
                 raise ValueError("this video already exists")
 
         processor = processor or get_video_processor()
@@ -368,7 +368,7 @@ def ingest_video(
                     c.DB_FLD_HASH: frame.hash,
                     c.IMG_FLD_SHAPE: frame.shape,
                     c.IMG_FLD_SCENE: (
-                        frame.scene.value if frame.scene else None
+                        clip_scene_to_idx(frame.scene) if frame.scene else None
                     ),
                     c.IMG_FLD_DESCRIPTION: frame.description,
                     c.DB_FLD_KEYWORDS: frame.keywords,
@@ -385,6 +385,7 @@ def ingest_video(
                 db_utils.images_collection.flush()
                 frame_id = frame_result.primary_keys[0]
                 inserted_image_ids.append(frame_id)
+                frame.id = frame_id
         return spans
     except Exception as e:
         for image_id in inserted_image_ids:

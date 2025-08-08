@@ -34,7 +34,9 @@ def get_clip_utils() -> tuple[CLIPModel, CLIPProcessor]:
     if None in clip_utils:
         model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
         processor = CLIPProcessor.from_pretrained(
-            "openai/clip-vit-large-patch14"
+            # TODO: figure out a way to use use_fast=True
+            "openai/clip-vit-large-patch14",
+            use_fast=False,
         )
         if get_cuda_memory() > 0:
             model = model.to("cuda")
@@ -236,9 +238,9 @@ def has_missed_content(
 
 def run_yolo(
     paths_or_images: list[Union[str, Image.Image]],
-    yolo_threshold: float = glb.yolo_prob_threshold,
-    fallback_clip_threshold: float = glb.yolo_fallback_clip_threshold,
-    filled_pixels_stddev: int = glb.filled_pixel_region_stddev,
+    yolo_threshold: Optional[float] = None,
+    fallback_clip_threshold: Optional[float] = None,
+    filled_pixels_stddev: Optional[int] = None,
 ) -> list[
     list[tuple[float, float, float, float, Optional[str], Optional[float]]]
 ]:
@@ -257,6 +259,14 @@ def run_yolo(
         LOGGER.setLevel(logging.ERROR)
 
         yolo_model = YOLOv10(get_yolo_path())
+
+    yolo_threshold = yolo_threshold or glb.yolo_prob_threshold
+    fallback_clip_threshold = (
+        fallback_clip_threshold or glb.yolo_fallback_clip_threshold
+    )
+    filled_pixels_stddev = (
+        filled_pixels_stddev or glb.filled_pixel_region_stddev
+    )
 
     device = "cuda" if get_cuda_memory() > 0 else "cpu"
     paths_or_images = make_pil_images(paths_or_images)

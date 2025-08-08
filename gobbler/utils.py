@@ -59,14 +59,6 @@ def get_usage_file(usage_type: str) -> str:
     return os.path.join(dir, f"{usage_file_name}.json")
 
 
-def load_usage_data(file: str) -> dict:
-    if not os.path.exists(file):
-        with open(file, "w", encoding="utf-8") as f:
-            json.dump({}, f)
-    with open(file, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
 def dump_usage_data(data: dict, file: str) -> None:
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)

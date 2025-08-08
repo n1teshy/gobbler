@@ -22,7 +22,6 @@ from gobbler.utils import (
     dump_usage_data,
     get_file_metadata,
     get_usage_file,
-    load_usage_data,
     make_pil_images,
     stringify_image,
 )
@@ -46,11 +45,12 @@ class ImageProcessor(BaseProcessor):
         )
         self.scene_to_desc = scene_to_desc or {}
         self.usage_file = get_usage_file(c.USAGE_AOAI_OCR)
-        self.usage_data = load_usage_data(self.usage_file)
-        self.usage_data[cred.AZURE_VLM_MODEL] = self.usage_data.get(
-            cred.AZURE_VLM_MODEL,
-            {c.FLD_USAGE_PROMPT: 0, c.FLD_USAGE_COMPLETION: 0},
-        )
+        self.usage_data = {
+            cred.AZURE_VLM_MODEL: {
+                c.FLD_USAGE_PROMPT: 0,
+                c.FLD_USAGE_COMPLETION: 0,
+            }
+        }
 
     def classify(
         self, path: str, heur_thresh: float = 1.5

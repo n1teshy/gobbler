@@ -20,8 +20,6 @@ from gobbler.processors.image.core import ImageProcessor
 from gobbler.processors.interfaces import BaseProcessor
 from gobbler.utils import (
     get_file_metadata,
-    get_usage_file,
-    load_usage_data,
     make_pil_images,
     stringify_image,
 )
@@ -43,9 +41,6 @@ class DocumentProcessor(BaseProcessor):
                 )
 
         self.keybert = KeyBERT("bert-base-nli-mean-tokens")
-        self.usage_file = get_usage_file(c.USAGE_LAI_OCR)
-        self.usage_data = load_usage_data(self.usage_file)
-        self.usage_data["pages"] = self.usage_data.get("pages", 0)
         self.image_processor = ImageProcessor()
 
     def process_page(self, page: fitz.Page) -> list[tuple[Position, str, str]]:

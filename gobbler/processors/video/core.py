@@ -26,7 +26,6 @@ from gobbler.utils import (
     dump_usage_data,
     get_file_metadata,
     get_usage_file,
-    load_usage_data,
 )
 
 
@@ -34,8 +33,8 @@ class VideoProcessor(BaseProcessor):
     def __init__(
         self,
         spf: int = glb.video_seconds_per_frame,
-        ssim_threshold: float = glb.ssim_threshold,
-        hist_threshold: float = glb.color_hist_threshold,
+        ssim_threshold: Optional[float] = None,
+        hist_threshold: Optional[float] = None,
         scene_to_desc: Optional[dict[ClipScene, str]] = None,
     ):
         """
@@ -55,8 +54,8 @@ class VideoProcessor(BaseProcessor):
             )
 
         self.spf = spf
-        self.ssim_thresh = ssim_threshold
-        self.hist_thresh = hist_threshold
+        self.ssim_thresh = ssim_threshold or glb.ssim_threshold
+        self.hist_thresh = hist_threshold or glb.color_hist_threshold
         self.image_processor = ImageProcessor(
             scene_to_desc=scene_to_desc or {}
         )
@@ -73,18 +72,14 @@ class VideoProcessor(BaseProcessor):
             api_version=cred.AZURE_WHISPER_VERSION,
         )
         self.compl_usage_file = get_usage_file(c.USAGE_AOAI_COMPLETION)
-        self.compl_usage_data = load_usage_data(self.compl_usage_file)
+        self.compl_usage_data = {
+            cred.AZURE_LLM_MODEL: {
+                c.FLD_USAGE_PROMPT: 0,
+                c.FLD_USAGE_COMPLETION: 0,
+            }
+        }
         self.txpn_usage_file = get_usage_file(c.USAGE_AOAI_TRANSCRIPTION)
-        self.txpn_usage_data = load_usage_data(self.txpn_usage_file)
-        self.compl_usage_data[cred.AZURE_LLM_MODEL] = (
-            self.compl_usage_data.get(
-                cred.AZURE_LLM_MODEL,
-                {c.FLD_USAGE_PROMPT: 0, c.FLD_USAGE_COMPLETION: 0},
-            )
-        )
-        self.txpn_usage_data[cred.AZURE_WHISPER_MODEL] = (
-            self.txpn_usage_data.get(cred.AZURE_WHISPER_MODEL, {"seconds": 0})
-        )
+        self.txpn_usage_data = {cred.AZURE_WHISPER_MODEL: {"seconds": 0}}
 
     def transcribe(self, path: str) -> list[dict[str, Union[int, str]]]:
         segments = []
