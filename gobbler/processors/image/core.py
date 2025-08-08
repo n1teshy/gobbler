@@ -52,17 +52,39 @@ class ImageProcessor(BaseProcessor):
             {c.FLD_USAGE_PROMPT: 0, c.FLD_USAGE_COMPLETION: 0},
         )
 
-    def classify(self, path: str) -> Optional[ClipScene]:
+    def classify(
+        self, path: str, heur_thresh: float = 1.5
+    ) -> Optional[ClipScene]:
         scene_probs = run_clip(make_pil_images([path]))[0]
         top_scene, top_prob = scene_probs[0]
         if top_prob >= glb.clip_prob_thresh:
             return top_scene
         scene_probs = {scene: prob for scene, prob in scene_probs}
-        conf_prob = scene_probs[ClipScene.VIDEO_CONFERENCE]
-        if scene_probs[ClipScene.DIAGRAM] + conf_prob >= glb.clip_prob_thresh:
-            return ClipScene.DIAGRAM
-        if scene_probs[ClipScene.TEXT] + conf_prob >= glb.clip_prob_thresh:
+        text_prob = scene_probs[ClipScene.TEXT]
+        diagram_prob = scene_probs[ClipScene.DIAGRAM]
+        tab_prob = scene_probs[ClipScene.TABULAR]
+
+        # heuristics
+        # "text >> diagram >> tabular >> ..."" means text
+        if (
+            top_scene == ClipScene.TEXT
+            and text_prob > (diagram_prob * heur_thresh)
+            and diagram_prob > (tab_prob * heur_thresh)
+            and (text_prob + diagram_prob + tab_prob) > glb.clip_prob_thresh
+        ):
             return ClipScene.TEXT
+
+        # "table >> text >> ..." or "text >> table >> ..." means table with text
+        if (
+            top_scene in (ClipScene.TABULAR, ClipScene.TEXT)
+            and (
+                tab_prob > (text_prob * heur_thresh)
+                or text_prob > (tab_prob * heur_thresh)
+            )
+            and (tab_prob + heur_thresh) > glb.clip_prob_thresh
+        ):
+            return ClipScene.TABULAR
+
         return None
 
     def call_4o(

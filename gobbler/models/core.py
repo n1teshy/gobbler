@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Union
 
 import numpy as np
@@ -6,6 +7,7 @@ from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
 import gobbler.constants as c
+import gobbler.globals as glb
 from gobbler.logger import logger
 from gobbler.models.utils import (
     ClipScene,
@@ -234,9 +236,9 @@ def has_missed_content(
 
 def run_yolo(
     paths_or_images: list[Union[str, Image.Image]],
-    yolo_threshold: float = 0.5,
-    fallback_clip_threshold: float = 0.8,
-    filled_pixels_stddev: int = 24,
+    yolo_threshold: float = glb.yolo_prob_threshold,
+    fallback_clip_threshold: float = glb.yolo_fallback_clip_threshold,
+    filled_pixels_stddev: int = glb.filled_pixel_region_stddev,
 ) -> list[
     list[tuple[float, float, float, float, Optional[str], Optional[float]]]
 ]:
@@ -249,6 +251,11 @@ def run_yolo(
     result = []
 
     if yolo_model is None:
+        # prevents YOLO from polluting stdout
+        from doclayout_yolo.utils import LOGGER  # noqa
+
+        LOGGER.setLevel(logging.ERROR)
+
         yolo_model = YOLOv10(get_yolo_path())
 
     device = "cuda" if get_cuda_memory() > 0 else "cpu"

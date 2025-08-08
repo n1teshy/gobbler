@@ -58,7 +58,7 @@ class DocumentProcessor(BaseProcessor):
         bboxes = run_yolo([page_image])[0]
         results = []
 
-        for *coord, label, confidence in bboxes:
+        for *coord, label, _ in bboxes:
             if label == c.YOLO_ABANDON:
                 continue
             if label is None:

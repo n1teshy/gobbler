@@ -1,10 +1,3 @@
-# --- video processing --
-
-SSIM_THRESH = 0.9
-SECONDS_PER_FRAME = 4
-NON_SCENIC_HIST_THRESH = 0.99
-
-
 # --- Azure/OpenAI ---
 LLM_FLD_ROLE = "role"
 LLM_FLD_CONTENT = "content"

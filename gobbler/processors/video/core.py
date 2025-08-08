@@ -1,26 +1,25 @@
 import json
 import os
 import shutil
-import subprocess
-import tempfile
-import warnings
 from pathlib import Path
 from typing import Optional, Union
 
-import cv2
 from openai import AzureOpenAI
 
 import gobbler.constants as c
 import gobbler.cred as cred
+import gobbler.globals as glb
 from gobbler.logger import logger
 from gobbler.models.utils import ClipScene
 from gobbler.processors.image.core import ImageProcessor
+from gobbler.processors.image.models import Image
 from gobbler.processors.interfaces import BaseProcessor
 from gobbler.processors.video.models import Span
 from gobbler.processors.video.utils import (
-    get_frame_info,
-    get_hist_score,
-    get_ssim_score,
+    extract_frames,
+    get_audio,
+    get_duration,
+    has_audio,
     topic_sys_msg,
 )
 from gobbler.utils import (
@@ -28,16 +27,15 @@ from gobbler.utils import (
     get_file_metadata,
     get_usage_file,
     load_usage_data,
-    temp_file,
 )
 
 
 class VideoProcessor(BaseProcessor):
     def __init__(
         self,
-        spf: int = c.SECONDS_PER_FRAME,
-        ssim_threshold: float = c.SSIM_THRESH,
-        hist_threshold: float = c.NON_SCENIC_HIST_THRESH,
+        spf: int = glb.video_seconds_per_frame,
+        ssim_threshold: float = glb.ssim_threshold,
+        hist_threshold: float = glb.color_hist_threshold,
         scene_to_desc: Optional[dict[ClipScene, str]] = None,
     ):
         """
@@ -59,7 +57,6 @@ class VideoProcessor(BaseProcessor):
         self.spf = spf
         self.ssim_thresh = ssim_threshold
         self.hist_thresh = hist_threshold
-        self.frames_dir: Optional[tempfile.NamedTemporaryFile] = None
         self.image_processor = ImageProcessor(
             scene_to_desc=scene_to_desc or {}
         )
@@ -89,103 +86,11 @@ class VideoProcessor(BaseProcessor):
             self.txpn_usage_data.get(cred.AZURE_WHISPER_MODEL, {"seconds": 0})
         )
 
-    def get_duration(self, path: str) -> float:
-        result = subprocess.run(
-            [
-                "ffprobe",
-                "-v",
-                "quiet",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "csv=p=0",
-                path,
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return float(result.stdout.strip())
-
-    def remove_duplicates_frames(self, files: list[str], show_progress: bool):
-        idx = 1
-        last_uniq = files[0]
-
-        while idx < len(files):
-            while (
-                idx < len(files)
-                and get_ssim_score(last_uniq, files[idx]) >= self.ssim_thresh
-            ):
-                os.remove(files[idx])
-                idx += 1
-            if show_progress:
-                print(
-                    f"--- frame de-duplication: {min((idx + 1) / len(files) * 100, 100):.2f}% ---",
-                    end="\r",
-                )
-            if idx >= len(files):
-                break
-            last_uniq = files[idx]
-            idx += 1
-
-    def extract_frames(
-        self, path: str, show_progress: bool
-    ) -> tuple[list[str], list[dict[str, float]], float]:
-        cap = cv2.VideoCapture(path)
-        files = []
-
-        try:
-            fps, no_frames = get_frame_info(path)
-            self.frames_dir = tempfile.TemporaryDirectory()
-            prev_gray = None
-
-            for index in range(0, no_frames, max(1, int(fps * self.spf))):
-                cap.set(cv2.CAP_PROP_POS_FRAMES, index)
-                ret, frame = cap.read()
-                if not ret:
-                    warnings.warn("could not get frame-%d" % (index,))
-                    continue
-
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                if prev_gray is not None:
-                    score = get_hist_score(prev_gray, gray)
-                    if score < self.hist_thresh:
-                        seconds = index / fps
-                        file = os.path.join(
-                            self.frames_dir.name, f"{seconds}.png"
-                        )
-                        cv2.imwrite(file, frame)
-                        files.append(file)
-
-                if show_progress:
-                    print(
-                        f"--- frame extraction: {((index + 1) / no_frames * 100):.2f}% ---",
-                        end="\r",
-                    )
-                prev_gray = gray
-
-            self.remove_duplicates_frames(files, show_progress)
-            files = [f for f in files if os.path.exists(f)]
-            video_dur, time_ranges = no_frames / fps, []
-
-            for s_f, e_f in zip(files, files[1:] + [None]):
-                s_second = int(os.path.basename(s_f).split(".")[0])
-                if e_f is not None:
-                    e_second = int(os.path.basename(e_f).split(".")[0])
-                else:
-                    e_second = video_dur
-                time_ranges.append({"start": s_second, "end": e_second})
-
-            return files, time_ranges
-        finally:
-            cap.release()
-
     def transcribe(self, path: str) -> list[dict[str, Union[int, str]]]:
         segments = []
-        audio_files = []
+        audio_files = get_audio(path)
 
         try:
-            audio_files = self.get_audio(path)
             for audio_file, start_offset in audio_files:
                 transcription = (
                     self.whisper_client.audio.transcriptions.create(
@@ -206,8 +111,8 @@ class VideoProcessor(BaseProcessor):
 
             return segments
         finally:
-            for audio_file, _ in audio_files:
-                os.remove(audio_file)
+            # cheeky display of free will
+            [os.remove(f) for f, _ in audio_files]
 
     def get_topics(
         self, segments: list[dict[str, Union[int, str]]]
@@ -247,7 +152,7 @@ class VideoProcessor(BaseProcessor):
                 logger.warning(f"Unexpected response format: {data}")
                 continue
 
-    def get_spans(
+    def accumulate_topic_txpn(
         self,
         time_ranges: list[dict[str, float]],
         segments: list[dict[str, Union[float, str]]],
@@ -293,16 +198,59 @@ class VideoProcessor(BaseProcessor):
             span_data.append(span_kwargs)
         return span_data
 
+    def get_spans(self, path: str, metadata: dict) -> list[Span]:
+        txpn_segments = self.transcribe(path)
+        dur = get_duration(path)
+        self.txpn_usage_data[cred.AZURE_WHISPER_MODEL]["seconds"] += dur
+        dump_usage_data(self.txpn_usage_data, self.txpn_usage_file)
+        topic_time_ranges = self.get_topics(txpn_segments)
+        if topic_time_ranges is None:
+            raise RuntimeError("Failed to get topics")
+
+        span_dicts = self.accumulate_topic_txpn(
+            topic_time_ranges, txpn_segments
+        )
+        spans: list[Span] = []
+
+        for span_kwargs in span_dicts:
+            spans.append(
+                Span(
+                    **metadata,
+                    **span_kwargs,
+                )
+            )
+        return [span for span in spans if span.end - span.start >= self.spf]
+
+    def process_frames(
+        self, path: str
+    ) -> tuple[list[Image], list[dict[str, float]]]:
+        frames, frame_time_ranges = extract_frames(
+            path,
+            spf=self.spf,
+            hist_thresh=self.hist_thresh,
+            ssim_thresh=self.ssim_thresh,
+        )
+        try:
+            image_objects, processed_time_ranges = [], []
+
+            for idx in range(len(frames)):
+                scene = self.image_processor.classify(frames[idx])
+                if scene is ClipScene.VIDEO_CONFERENCE:
+                    continue
+                image_objects.append(self.image_processor.process(frames[idx]))
+                processed_time_ranges.append(frame_time_ranges[idx])
+            return image_objects, processed_time_ranges
+        finally:
+            if frames:
+                shutil.rmtree(os.path.dirname(frames[0]))
+
     def assign_frames(
         self,
         spans: list[Span],
-        frames: list[str],
-        frame_ranges: list[dict],
-        show_progress: bool = False,
+        frames: list[Image],
+        frame_ranges: list[dict[str, float]],
     ) -> None:
         frame_idx = 0
-        processed_images = {}
-
         for span in spans:
             while (
                 0 <= frame_idx < len(frame_ranges)
@@ -320,24 +268,18 @@ class VideoProcessor(BaseProcessor):
                 - max(frame_ranges[frame_idx]["start"], span.start)
                 >= self.spf
             ):
-                scene = self.image_processor.classify(frames[frame_idx])
-                if scene is not ClipScene.VIDEO_CONFERENCE:
-                    if frame_idx not in processed_images:
-                        if show_progress:
-                            logger.info(
-                                f"--- describing {frames[frame_idx]} ---"
-                            )
-                        processed_images[frame_idx] = (
-                            self.image_processor.process(
-                                frames[frame_idx], scene
-                            )
-                        )
-                    span.frames.append(processed_images[frame_idx])
+                span.frames.append(frames[frame_idx])
                 frame_idx += 1
 
     def process(
-        self, path: str, audio_only: bool = False, show_progress: bool = False
-    ) -> list[Span]:
+        self, path: str, audio_only: bool = False, frames_only: bool = False
+    ) -> Union[list[Span], tuple[list[Image], list[dict[str, float]]]]:
+        """
+        Returns list[Span] for audio + video or audio_only.
+        Returns list[Image] and list[{"start": <float>, "end": <float>}...]
+            for frames_only.
+        """
+
         if not os.path.exists(path):
             raise FileNotFoundError(f"Video file not found: {path}")
 
@@ -345,99 +287,23 @@ class VideoProcessor(BaseProcessor):
         if not metadata["mime_type"].startswith("video/"):
             raise ValueError(f"Doesn't seem to be a video {path}")
 
-        if show_progress:
-            logger.info(f"--- transcribing ---")
-        txpn_segments = self.transcribe(path)
-        dur = self.get_duration(path)
-        self.txpn_usage_data[cred.AZURE_WHISPER_MODEL]["seconds"] += dur
-        dump_usage_data(self.txpn_usage_data, self.txpn_usage_file)
-        topic_time_ranges = self.get_topics(txpn_segments)
-
-        if topic_time_ranges is None:
-            raise RuntimeError("Failed to get topics")
-
-        span_dicts = self.get_spans(topic_time_ranges, txpn_segments)
-        spans: list[Span] = []
-
-        for span_kwargs in span_dicts:
-            spans.append(
-                Span(
-                    **metadata,
-                    **span_kwargs,
+        if not has_audio(path):
+            if not frames_only:
+                logger.warning(
+                    f"{path} does not have audio, processing in frames_only mode"
                 )
-            )
+                frames_only = True
+            if audio_only:
+                raise ValueError(
+                    f"set 'audio_only=True' but video has not audio track :("
+                )
 
-        spans = [span for span in spans if span.end - span.start >= self.spf]
-        if audio_only:
-            return spans
+        if frames_only:
+            return self.process_frames(path)
 
-        frames, frame_time_ranges = self.extract_frames(path, show_progress)
-        self.assign_frames(spans, frames, frame_time_ranges, show_progress)
+        spans = self.get_spans(path, metadata)
+        if not audio_only:
+            frames, frame_time_ranges = self.process_frames(path)
+            self.assign_frames(spans, frames, frame_time_ranges)
+
         return spans
-
-    def cleanup(self):
-        if self.frames_dir is not None:
-            self.frames_dir.cleanup()
-
-    def get_audio(self, path: str) -> list[tuple[str, float]]:
-        MAX_FILE_SIZE = 25 * 1024 * 1024
-        audio_files = []
-        full_audio_f = temp_file(".wav")
-
-        try:
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-i",
-                    path,
-                    "-vn",
-                    "-acodec",
-                    "pcm_s16le",
-                    full_audio_f,
-                ],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-
-            file_size = os.path.getsize(full_audio_f)
-            if file_size <= MAX_FILE_SIZE:
-                audio_files.append((full_audio_f, 0.0))
-                return audio_files
-
-            total_duration = self.get_duration(full_audio_f)
-            chunk_duration = (total_duration * MAX_FILE_SIZE) / file_size
-            chunk_duration *= 0.9
-            current_start = 0
-            chunk_index = 0
-
-            while current_start < total_duration:
-                chunk_end = min(current_start + chunk_duration, total_duration)
-                chunk_file = temp_file(f"_chunk_{chunk_index}.wav")
-                subprocess.run(
-                    [
-                        "ffmpeg",
-                        "-i",
-                        path,
-                        "-ss",
-                        str(current_start),
-                        "-t",
-                        str(chunk_end - current_start),
-                        "-vn",
-                        "-acodec",
-                        "pcm_s16le",
-                        chunk_file,
-                    ],
-                    check=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                audio_files.append((chunk_file, current_start))
-                current_start = chunk_end
-                chunk_index += 1
-            return audio_files
-        except:
-            for audio_file, _ in audio_files:
-                if os.path.exists(audio_file):
-                    os.remove(audio_file)
-            raise

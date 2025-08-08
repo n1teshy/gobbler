@@ -17,6 +17,8 @@ from PIL import Image
 
 import gobbler.meta as meta
 
+usage_file_name = int(time.time())
+
 
 def temp_file(suffix: str, length: int = 10) -> str:
     letters = string.ascii_letters + string.digits
@@ -51,12 +53,10 @@ def get_file_metadata(path: str, uri: Optional[str] = None) -> dict:
 
 
 def get_usage_file(usage_type: str) -> str:
-    # one file per day
-    today = int(time.time()) // 86400
     dir = os.path.join(appdirs.user_data_dir(meta.name), usage_type)
     if not os.path.exists(dir):
         os.makedirs(dir, exist_ok=True)
-    return os.path.join(dir, f"{today}.json")
+    return os.path.join(dir, f"{usage_file_name}.json")
 
 
 def load_usage_data(file: str) -> dict:
