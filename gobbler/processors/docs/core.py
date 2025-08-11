@@ -8,6 +8,7 @@ from keybert import KeyBERT
 
 import gobbler.constants as c
 import gobbler.cred as cred
+import gobbler.globals as glb
 from gobbler.logger import logger
 from gobbler.models.core import run_yolo
 from gobbler.processors.docs.models import DocumentObject, Position
@@ -61,9 +62,12 @@ class DocumentProcessor(BaseProcessor):
             else:
                 box_image = page_image.crop(coord)
             sys_msg = yolo_sys_msgs.get(label, sys_msg_any_caption)
-            description = self.image_processor.call_4o(
-                sys_msg, stringify_image(box_image), response_format="text"
-            )
+            if glb.no_caption_mode:
+                description = ""  # Placeholder for batch processing
+            else:
+                description = self.image_processor.call_4o(
+                    sys_msg, stringify_image(box_image), response_format="text"
+                )
             results.append((Position(*coord), label, description))
 
         return results
@@ -84,6 +88,16 @@ class DocumentProcessor(BaseProcessor):
             for page_idx, page in enumerate(fitz_doc):
                 page_boxes = self.process_page(page)
                 for position, label, description in page_boxes:
+                    if glb.no_caption_mode or not description:
+                        keywords = []
+                    else:
+                        keywords = list(
+                            map(
+                                lambda x: x[0],
+                                self.keybert.extract_keywords(description),
+                            )
+                        )
+
                     doc_objects.append(
                         DocumentObject(
                             **metadata,
@@ -91,12 +105,7 @@ class DocumentProcessor(BaseProcessor):
                             position=position,
                             type=label,
                             content=description,
-                            keywords=list(
-                                map(
-                                    lambda x: x[0],
-                                    self.keybert.extract_keywords(description),
-                                )
-                            ),
+                            keywords=keywords,
                         )
                     )
             return doc_objects

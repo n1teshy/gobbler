@@ -270,6 +270,11 @@ def main():
         type=float,
         help="Heuristic threshold for image classification",
     )
+    img_group.add_argument(
+        "--no-caption",
+        action="store_true",
+        help="Skip image captioning (placeholder for batch processing later)",
+    )
 
     vid_group = parser.add_argument_group("Video Processing Options")
     vid_group.add_argument(
@@ -361,6 +366,8 @@ def main():
     if args.filled_pixel_region_stddev is not None:
         glb.filled_pixel_region_stddev = args.filled_pixel_region_stddev
 
+    glb.no_caption_mode = args.no_caption
+
     files = collect_files(args.input, recursive=not args.no_recursive)
 
     if not files:
@@ -442,6 +449,8 @@ def main():
         sys.exit(1)
 
     print(f"Processing {len(files)} files...")
+    if args.no_caption:
+        print("Note: Caption generation skipped")
 
     processed_count = 0
     current_failed = []

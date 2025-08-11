@@ -166,6 +166,17 @@ class ImageProcessor(BaseProcessor):
 
         scene = scene or self.classify(path)
         shape = cv2.imread(path).shape[:2]
+
+        # Check global no-caption mode
+        if glb.no_caption_mode:
+            return Image(
+                **metadata,
+                shape=f"{shape[0]}x{shape[1]}",
+                scene=scene,
+                description="",  # Placeholder for batch processing
+                keywords=[],  # Placeholder for batch processing
+            )
+
         desc_dict = self.describe(path, scene)
         if desc_dict is None:
             raise RuntimeError(f"Failed to describe image: {path}")

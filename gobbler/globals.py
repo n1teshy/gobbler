@@ -13,3 +13,6 @@ yolo_fallback_clip_threshold = float(
     os.getenv("YOLO_FALLBACK_CLIP_THRESHOLD", 0.8)
 )
 filled_pixel_region_stddev = int(os.getenv("FILLED_PIXEL_REGION_STDDEV", 24))
+
+# Global flag for no-caption mode (set by CLI)
+no_caption_mode = False
