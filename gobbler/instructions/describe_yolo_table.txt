@@ -11,3 +11,4 @@ NOTE:
  - include all metadata about the table, like title, footnote, caption etc.
  - if something is missing, do not output text explaining absence.
  - include all metadata, like title, footnote, caption, anything relevant in the image.
+ - if something is missing, don't explain its absence, just skip it.

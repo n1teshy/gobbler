@@ -6,9 +6,10 @@ and "keywords", 'keywords' must include organizations, projects, people and othe
 in the visual content. schema: {"description": <string>, "keywords": <string>[]}
 
 NOTE:
- - do not summarize or explain the content, extract all of it, as it is.
+ - do not summarize the content, capture the idea in it, e.g. if it's data flow describe it in terms
+   of data flow, this will help RAG queries match it well.
  - the diagram may be displayed inside an app like MicroSoft PowerPoint or presented in a conference call
    ignore everything else and focus solely on the diagram.
- - no meta commentary, nothing but the textual description of digram in the image.
+ - this is not a chat, don't say anything except for the textual description of digram in the image.
  - include all metadata about the diagram, like title, footnote, caption etc.
- - if something is missing, do not output text explaining absence.
+ - if something is missing, do not output text explaining absence, just skip it.

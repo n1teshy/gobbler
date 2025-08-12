@@ -5,5 +5,5 @@ description of it. The response must be a JSON object with fields "description" 
 schema: {"description": <string>, "keywords": <string>[]}
 
 NOTE:
- - do not summarize or explain the content, extract all of it, as it is.
- - if something is missing, do not output text explaining absence.
+ - do not summarize the content, capture the idea in it.
+ - if something is missing, do not output text explaining absence, just skip it.

@@ -4,7 +4,8 @@ to score/interpret the diagram by reading your textual description of it. Cover 
 interactions with one another in detail.
 
 NOTE:
- - do not summarize or explain the content, extract all of it, as it is.
+ - do not summarize the content, capture the idea of the figure, e.g. if it's a flowchart of data
+   describe it in terms of data flow.
  - the diagram may be displayed inside an app like MicroSoft PowerPoint or presented in a conference call
    ignore everything else and focus solely on the diagram.
  - no meta commentary, nothing but the textual description of the diagram in the image.

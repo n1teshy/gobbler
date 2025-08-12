@@ -5,3 +5,4 @@ NOTE:
    ignore everything else and focus solely on the text.
  - no meta commentary, nothing but the text in the image.
  - include all metadata, like title, footnote, caption, anything relevant in the image.
+ - if something is missing, don't explain its absence, just skip it.
