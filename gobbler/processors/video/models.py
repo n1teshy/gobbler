@@ -1,4 +1,5 @@
 import json
+from typing import Union
 
 from gobbler.processors.image.models import Image
 from gobbler.processors.interfaces import BaseFile, DBEntity
@@ -9,7 +10,7 @@ class Span(DBEntity, BaseFile):
     end: float
     short_description: str
     long_description: str
-    frames: list[Image] = []
+    frames: Union[dict[int, Image], list[Image]] = {}
     keywords: list[str] = []
 
     class Config:

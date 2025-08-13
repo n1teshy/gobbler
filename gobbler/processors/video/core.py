@@ -263,7 +263,10 @@ class VideoProcessor(BaseProcessor):
                 - max(frame_ranges[frame_idx]["start"], span.start)
                 >= self.spf
             ):
-                span.frames.append(frames[frame_idx])
+                range = frame_ranges[frame_idx]
+                span.frames[(range["start"] + range["end"]) // 2] = frames[
+                    frame_idx
+                ]
                 frame_idx += 1
 
     def process(
