@@ -1,7 +1,5 @@
 import os
-import tempfile
 from typing import Optional
-from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from trafilatura import extract
@@ -162,7 +160,13 @@ class HTMLProcessor(BaseProcessor):
             result_lines.append(modified_line)
         return "\n".join(result_lines)
 
-    def process(self, path: str, base_url: str = "") -> str:
+    def process(
+        self,
+        path: str,
+        base_url: str = "",
+        img_only: bool = False,
+        video_only: bool = False,
+    ) -> str:
         if not os.path.exists(path):
             raise FileNotFoundError(f"HTML file not found: {path}")
 
@@ -171,8 +175,15 @@ class HTMLProcessor(BaseProcessor):
 
         soup = BeautifulSoup(html_content, "html.parser")
 
+        if img_only:
+            allowed_tags = ["img"]
+        elif video_only:
+            allowed_tags = ["video"]
+        else:
+            allowed_tags = ["img", "video"]
+
         media_elements = {}
-        for idx, tag in enumerate(soup.find_all(["img", "video"])):
+        for idx, tag in enumerate(soup.find_all(allowed_tags)):
             placeholder = f"MEDIA_PLACEHOLDER_{tag.name}_{idx}"
             media_elements[placeholder] = self.process_media_element(
                 tag, base_url
