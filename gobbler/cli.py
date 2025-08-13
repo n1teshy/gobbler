@@ -214,14 +214,18 @@ def process_single_file(
             progress_bar.set_description(f"{file_name}")
 
         if processor_class == VideoProcessor:
-            results = processor.process(file_path)
+            results = processor.process(file_path, no_caption=args.no_caption)
         elif processor_class == ImageProcessor:
-            results = [processor.process(file_path)]
+            results = [
+                processor.process(file_path, no_caption=args.no_caption)
+            ]
         elif processor_class == DocumentProcessor:
-            results = processor.process(file_path)
+            results = processor.process(file_path, no_caption=args.no_caption)
         elif processor_class == HTMLProcessor:
-            media_base = getattr(args, "html_media_base", "") if args else ""
-            text_result = processor.process(file_path, media_base)
+            media_base = getattr(args, "html_media_base", "")
+            text_result = processor.process(
+                file_path, media_base, no_caption=args.no_caption
+            )
 
             file_stem = Path(file_path).stem
             output_file = Path(output_dir) / f"{file_stem}.txt"
@@ -391,8 +395,6 @@ def main():
         glb.yolo_fallback_clip_threshold = args.yolo_fallback_clip_threshold
     if args.filled_pixel_region_stddev is not None:
         glb.filled_pixel_region_stddev = args.filled_pixel_region_stddev
-
-    glb.no_caption_mode = args.no_caption
 
     files = collect_files(args.input, recursive=not args.no_recursive)
 

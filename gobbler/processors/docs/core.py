@@ -8,7 +8,6 @@ from keybert import KeyBERT
 
 import gobbler.constants as c
 import gobbler.cred as cred
-import gobbler.globals as glb
 from gobbler.logger import logger
 from gobbler.models.core import run_yolo
 from gobbler.processors.docs.models import DocumentObject, Position
@@ -44,7 +43,9 @@ class DocumentProcessor(BaseProcessor):
         self.keybert = KeyBERT("bert-base-nli-mean-tokens")
         self.image_processor = ImageProcessor()
 
-    def process_page(self, page: fitz.Page) -> list[tuple[Position, str, str]]:
+    def process_page(
+        self, page: fitz.Page, no_caption: bool
+    ) -> list[tuple[Position, str, str]]:
         """
         Returns tuple[position, object_type, description]
         see constants file for YOLO objects.
@@ -62,8 +63,8 @@ class DocumentProcessor(BaseProcessor):
             else:
                 box_image = page_image.crop(coord)
             sys_msg = yolo_sys_msgs.get(label, sys_msg_any_caption)
-            if glb.no_caption_mode:
-                description = ""  # Placeholder for batch processing
+            if no_caption:
+                description = ""
             else:
                 description = self.image_processor.call_4o(
                     sys_msg, stringify_image(box_image), response_format="text"
@@ -72,7 +73,9 @@ class DocumentProcessor(BaseProcessor):
 
         return results
 
-    def process(self, path: str) -> list[DocumentObject]:
+    def process(
+        self, path: str, no_caption: bool = False
+    ) -> list[DocumentObject]:
         metadata = get_file_metadata(path)
         doc_objects = []
         fitz_doc = None
@@ -86,11 +89,10 @@ class DocumentProcessor(BaseProcessor):
 
             fitz_doc = fitz.open(converted_pdf or path)
             for page_idx, page in enumerate(fitz_doc):
-                page_boxes = self.process_page(page)
+                page_boxes = self.process_page(page, no_caption)
                 for position, label, description in page_boxes:
-                    if glb.no_caption_mode or not description:
-                        keywords = []
-                    else:
+                    keywords = []
+                    if description:
                         keywords = list(
                             map(
                                 lambda x: x[0],

@@ -217,7 +217,7 @@ class VideoProcessor(BaseProcessor):
         return [span for span in spans if span.end - span.start >= self.spf]
 
     def process_frames(
-        self, path: str
+        self, path: str, no_caption: bool
     ) -> tuple[list[Image], list[dict[str, float]]]:
         frames, frame_time_ranges = extract_frames(
             path,
@@ -232,7 +232,9 @@ class VideoProcessor(BaseProcessor):
                 scene = self.image_processor.classify(frames[idx])
                 if scene is ClipScene.VIDEO_CONFERENCE:
                     continue
-                image_objects.append(self.image_processor.process(frames[idx]))
+                image_objects.append(
+                    self.image_processor.process(frames[idx]), no_caption
+                )
                 processed_time_ranges.append(frame_time_ranges[idx])
             return image_objects, processed_time_ranges
         finally:
@@ -258,7 +260,11 @@ class VideoProcessor(BaseProcessor):
                     span.frames[timestamp] = frames[frame_idx]
 
     def process(
-        self, path: str, audio_only: bool = False, frames_only: bool = False
+        self,
+        path: str,
+        no_caption: bool = False,
+        audio_only: bool = False,
+        frames_only: bool = False,
     ) -> Union[list[Span], tuple[list[Image], list[dict[str, float]]]]:
         """
         Returns list[Span] for audio + video or audio_only.
@@ -285,11 +291,11 @@ class VideoProcessor(BaseProcessor):
                 )
 
         if frames_only:
-            return self.process_frames(path)
+            return self.process_frames(path, no_caption)
 
         spans = self.get_spans(path, metadata)
         if not audio_only:
-            frames, frame_time_ranges = self.process_frames(path)
+            frames, frame_time_ranges = self.process_frames(path, no_caption)
             self.assign_frames(spans, frames, frame_time_ranges)
 
         return spans

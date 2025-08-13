@@ -2,6 +2,7 @@ import os
 from typing import Optional
 
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 from trafilatura import extract
 
 from gobbler.logger import logger
@@ -98,7 +99,9 @@ class HTMLProcessor(BaseProcessor):
             logger.warning(f"Failed to decode base64 data URI: {e}")
             return None
 
-    def process_media_element(self, tag, base_url: str = "") -> Optional[str]:
+    def process_media_element(
+        self, tag: Tag, base_url: str = ""
+    ) -> Optional[str]:
         try:
             src = tag.get("src")
             media_path, cleanup_after = None, False
@@ -119,7 +122,9 @@ class HTMLProcessor(BaseProcessor):
                     self.image_processor = (
                         self.image_processor or ImageProcessor()
                     )
-                    processed = self.image_processor.process(media_path)
+                    processed = self.image_processor.process(
+                        media_path,
+                    )
                     return self.format_media_tag("img", processed.to_json())
                 elif tag.name == "video":
                     self.video_processor = (
@@ -170,6 +175,7 @@ class HTMLProcessor(BaseProcessor):
         self,
         path: str,
         base_url: str = "",
+        no_caption: bool = None,
         img_only: bool = False,
         video_only: bool = False,
     ) -> str:
@@ -180,6 +186,8 @@ class HTMLProcessor(BaseProcessor):
             html_content = f.read()
 
         soup = BeautifulSoup(html_content, "html.parser")
+        if no_caption:
+            return extract(str(soup))
 
         if img_only:
             allowed_tags = ["img"]

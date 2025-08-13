@@ -38,6 +38,7 @@ setup(
         "pynvml==12.0.0",
         "beautifulsoup4==4.13.4",
         "trafilatura==2.0.0",
+        "hf-xet==1.1.7",
     ],
     classifiers=[
         "Intended Audience :: Developers",

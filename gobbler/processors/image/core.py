@@ -156,7 +156,12 @@ class ImageProcessor(BaseProcessor):
             return data
         logger.error(f"invalid image description, missing keys: {img_desc}")
 
-    def process(self, path: str, scene: Optional[ClipScene] = None) -> Image:
+    def process(
+        self,
+        path: str,
+        no_caption: bool = False,
+        scene: Optional[ClipScene] = None,
+    ) -> Image:
         if not os.path.exists(path):
             raise FileNotFoundError(f"File not found: {path}")
 
@@ -168,7 +173,7 @@ class ImageProcessor(BaseProcessor):
         shape = cv2.imread(path).shape[:2]
 
         # Check global no-caption mode
-        if glb.no_caption_mode:
+        if no_caption:
             return Image(
                 **metadata,
                 shape=f"{shape[0]}x{shape[1]}",
