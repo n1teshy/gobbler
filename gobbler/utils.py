@@ -9,7 +9,7 @@ import string
 import tempfile
 import time
 from typing import Optional, Union
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import appdirs
 import requests
@@ -111,3 +111,27 @@ def stringify_image(img: Union[str, Image.Image]) -> str:
         finally:
             os.unlink(temp_path)
     return f"data:{mime};base64,{b64}"
+
+
+def is_valid_url(url: str) -> bool:
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except Exception:
+        return False
+
+
+def get_absolute_url(url: str, base_url: str) -> str:
+    if is_valid_url(url):
+        return url
+    if base_url:
+        return urljoin(base_url, url)
+    return url
+
+
+def cleanup_temp_file(filepath: str) -> None:
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+        except Exception:
+            pass

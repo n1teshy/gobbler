@@ -10,6 +10,7 @@ import tqdm
 import gobbler.meta as meta
 from gobbler.logger import logger
 from gobbler.processors.docs.core import DocumentProcessor
+from gobbler.processors.html.core import HTMLProcessor
 from gobbler.processors.image.core import ImageProcessor
 from gobbler.processors.video.core import VideoProcessor
 from gobbler.utils import get_mime_type
@@ -25,6 +26,7 @@ BANNER = f"""
 
 SUPPORTED_EXTENSIONS = {
     "document": {".pdf", ".doc", ".docx", ".ppt", ".pptx"},
+    "html": {".html", ".htm", ".xhtml"},
     "image": {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp"},
     "video": {".mp4", ".avi", ".mov", ".mkv", ".wmv", ".flv", ".webm"},
 }
@@ -149,6 +151,11 @@ def get_processor_for_file(file_path: str) -> Optional[type]:
         or extension in SUPPORTED_EXTENSIONS["document"]
     ):
         return DocumentProcessor
+    elif (
+        mime_type in ["text/html", "application/xhtml+xml"]
+        or extension in SUPPORTED_EXTENSIONS["html"]
+    ):
+        return HTMLProcessor
 
     return None
 
@@ -190,6 +197,7 @@ def process_single_file(
     file_path: str,
     output_dir: str,
     processors: dict[str, Any],
+    args: Optional[argparse.Namespace] = None,
     progress_bar: Optional[tqdm.tqdm] = None,
 ) -> Tuple[bool, Optional[str]]:
     try:
@@ -211,6 +219,17 @@ def process_single_file(
             results = [processor.process(file_path)]
         elif processor_class == DocumentProcessor:
             results = processor.process(file_path)
+        elif processor_class == HTMLProcessor:
+            media_base = getattr(args, "html_media_base", "") if args else ""
+            text_result = processor.process(file_path, media_base)
+
+            file_stem = Path(file_path).stem
+            output_file = Path(output_dir) / f"{file_stem}.txt"
+
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(text_result)
+
+            return True, None
 
         file_stem = Path(file_path).stem
         output_file = Path(output_dir) / f"{file_stem}.json"
@@ -316,6 +335,13 @@ def main():
         "--filled-pixel-region-stddev",
         type=int,
         help="Standard deviation for filled pixel regions",
+    )
+
+    html_group = parser.add_argument_group("HTML Processing Options")
+    html_group.add_argument(
+        "--html-media-base",
+        type=str,
+        help="Base URL or directory path for resolving relative media paths in HTML files",
     )
 
     parser.add_argument(
@@ -444,6 +470,9 @@ def main():
         if any(get_processor_for_file(f) == DocumentProcessor for f in files):
             processors["DocumentProcessor"] = DocumentProcessor()
 
+        if any(get_processor_for_file(f) == HTMLProcessor for f in files):
+            processors["HTMLProcessor"] = HTMLProcessor()
+
     except Exception as e:
         logger.error(f"Failed to initialize processors: {e}")
         sys.exit(1)
@@ -461,7 +490,7 @@ def main():
                 args.input, args.output, file_path
             )
             success, error = process_single_file(
-                file_path, output_subdir, processors
+                file_path, output_subdir, processors, args
             )
             if success:
                 processed_count += 1
@@ -481,7 +510,7 @@ def main():
                     args.input, args.output, file_path
                 )
                 success, error = process_single_file(
-                    file_path, output_subdir, processors, pbar
+                    file_path, output_subdir, processors, args, pbar
                 )
                 if success:
                     processed_count += 1
