@@ -18,8 +18,8 @@ from gobbler.utils import (
 
 class HTMLProcessor(BaseProcessor):
     def __init__(self):
-        self.image_processor = ImageProcessor()
-        self.video_processor = VideoProcessor()
+        self.image_processor = None
+        self.video_processor = None
 
     def get_media_file(self, src: str, base_url: str = "") -> Optional[str]:
         if os.path.exists(src):
@@ -116,9 +116,15 @@ class HTMLProcessor(BaseProcessor):
 
             try:
                 if tag.name == "img":
+                    self.image_processor = (
+                        self.image_processor or ImageProcessor()
+                    )
                     processed = self.image_processor.process(media_path)
                     return self.format_media_tag("img", processed.to_json())
                 elif tag.name == "video":
+                    self.video_processor = (
+                        self.video_processor or VideoProcessor()
+                    )
                     processed = self.video_processor.process(media_path)
                     if isinstance(processed, list):
                         return "\n".join(
