@@ -36,6 +36,8 @@ setup(
         "tokenizers==0.21.4",
         "doclayout_yolo==0.0.4",
         "pynvml==12.0.0",
+        "beautifulsoup4==4.13.4",
+        "trafilatura==2.0.0",
     ],
     classifiers=[
         "Intended Audience :: Developers",
