@@ -30,7 +30,7 @@ setup(
         "openai==1.88.0",
         "pymupdf==1.26.3",
         "keybert==0.9.0",
-        "requests",
+        "requests==2.27.1",
         "appdirs==1.4.4",
         "pymilvus==2.6.0b0",
         "tokenizers==0.21.4",
