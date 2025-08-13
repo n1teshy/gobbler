@@ -245,29 +245,17 @@ class VideoProcessor(BaseProcessor):
         frames: list[Image],
         frame_ranges: list[dict[str, float]],
     ) -> None:
-        frame_idx = 0
         for span in spans:
-            while (
-                0 <= frame_idx < len(frame_ranges)
-                and frame_ranges[frame_idx]["start"] > span.start
-            ):
-                frame_idx -= 1
-            if (
-                0 <= frame_idx < len(frame_ranges)
-                and frame_ranges[frame_idx]["start"] < span.start
-            ):
-                frame_idx += 1
-            while (
-                0 <= frame_idx < len(frame_ranges)
-                and min(frame_ranges[frame_idx]["end"], span.end)
-                - max(frame_ranges[frame_idx]["start"], span.start)
-                >= self.spf
-            ):
-                range = frame_ranges[frame_idx]
-                span.frames[(range["start"] + range["end"]) // 2] = frames[
-                    frame_idx
-                ]
-                frame_idx += 1
+            for frame_idx, frame_range in enumerate(frame_ranges):
+                overlap_start = max(frame_range["start"], span.start)
+                overlap_end = min(frame_range["end"], span.end)
+                overlap_duration = overlap_end - overlap_start
+
+                if overlap_duration >= self.spf:
+                    timestamp = (
+                        frame_range["start"] + frame_range["end"]
+                    ) // 2
+                    span.frames[timestamp] = frames[frame_idx]
 
     def process(
         self, path: str, audio_only: bool = False, frames_only: bool = False
