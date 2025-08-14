@@ -1,15 +1,15 @@
 import io
 import os
+from typing import Optional
 from urllib.parse import urljoin
 
 import fitz
 import requests
-from keybert import KeyBERT
 
-import gobbler.constants as c
 import gobbler.cred as cred
 from gobbler.logger import logger
-from gobbler.models.core import run_yolo
+from gobbler.models.core import run_keybert, run_yolo
+from gobbler.models.utils import YOLOScene
 from gobbler.processors.docs.models import DocumentObject, Position
 from gobbler.processors.docs.utils import (
     office_to_pdf,
@@ -40,11 +40,14 @@ class DocumentProcessor(BaseProcessor):
                     f"Office conversion server is not reachable: {e}"
                 )
 
-        self.keybert = KeyBERT("bert-base-nli-mean-tokens")
         self.image_processor = ImageProcessor()
 
     def process_page(
-        self, page: fitz.Page, no_caption: bool
+        self,
+        page: fitz.Page,
+        no_caption: bool,
+        yolo_class_to_prompt: dict[YOLOScene, str],
+        yolo_fallback_prompt: str,
     ) -> list[tuple[Position, str, str]]:
         """
         Returns tuple[position, object_type, description]
@@ -55,27 +58,38 @@ class DocumentProcessor(BaseProcessor):
         bboxes = run_yolo([page_image])[0]
         results = []
 
-        for *coord, label, _ in bboxes:
-            if label == c.YOLO_ABANDON:
+        for *coord, scene, _ in bboxes:
+            if scene == YOLOScene.ABANDON:
                 continue
-            if label is None:
+            if scene is None:
                 box_image = page_image
             else:
                 box_image = page_image.crop(coord)
-            sys_msg = yolo_sys_msgs.get(label, sys_msg_any_caption)
             if no_caption:
                 description = ""
             else:
+                sys_msg = yolo_class_to_prompt.get(scene, yolo_fallback_prompt)
                 description = self.image_processor.call_4o(
                     sys_msg, stringify_image(box_image), response_format="text"
                 )
-            results.append((Position(*coord), label, description))
+            results.append((Position(*coord), scene, description))
 
         return results
 
     def process(
-        self, path: str, no_caption: bool = False
+        self,
+        path: str,
+        no_caption: bool = False,
+        yolo_class_to_prompt: Optional[dict[YOLOScene, str]] = None,
+        yolo_fallback_prompt: Optional[str] = None,
+        identify_keywords: bool = True,
     ) -> list[DocumentObject]:
+        """
+        Refer to `gobbler/constants.py` to get the list of accepted
+        keys in `yolo_class_to_prompt`.
+        """
+        yolo_class_to_prompt = yolo_class_to_prompt or yolo_sys_msgs
+        yolo_fallback_prompt = yolo_fallback_prompt or sys_msg_any_caption
         metadata = get_file_metadata(path)
         doc_objects = []
         fitz_doc = None
@@ -89,16 +103,18 @@ class DocumentProcessor(BaseProcessor):
 
             fitz_doc = fitz.open(converted_pdf or path)
             for page_idx, page in enumerate(fitz_doc):
-                page_boxes = self.process_page(page, no_caption)
+                page_boxes = self.process_page(
+                    page,
+                    no_caption,
+                    yolo_class_to_prompt,
+                    yolo_fallback_prompt,
+                )
                 for position, label, description in page_boxes:
                     keywords = []
-                    if description:
-                        keywords = list(
-                            map(
-                                lambda x: x[0],
-                                self.keybert.extract_keywords(description),
-                            )
-                        )
+                    if identify_keywords and description:
+                        keywords = [
+                            word for word, _ in run_keybert(description)
+                        ]
 
                     doc_objects.append(
                         DocumentObject(

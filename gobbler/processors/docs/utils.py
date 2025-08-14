@@ -5,23 +5,11 @@ from urllib.parse import urljoin
 
 import requests
 
-import gobbler.constants as c
 import gobbler.cred as cred
 import gobbler.globals as glb
+from gobbler.models.utils import YOLOScene
 from gobbler.utils import temp_file
 
-idx_2_chunk_type = [
-    c.YOLO_TITLE,
-    c.YOLO_PLAIN_TEXT,
-    c.YOLO_FIGURE,
-    c.YOLO_FIGURE_CAPTION,
-    c.YOLO_TABLE,
-    c.YOLO_TABLE_CAPTION,
-    c.YOLO_TABLE_FOOTNOTE,
-    c.YOLO_ISOLATE_FORMULA,
-    c.YOLO_FORMULA_CAPTION,
-]
-chunk_type_2_idx = {typ: idx for idx, typ in enumerate(idx_2_chunk_type)}
 conversion_endpoint = cred.OFFICE_CONVERSION_SERVER and urljoin(
     cred.OFFICE_CONVERSION_SERVER, "/convert"
 )
@@ -30,36 +18,32 @@ sys_msg_any_caption = open(
     path.join(glb.instructions_dir, "describe_yolo_any_caption.txt"), "r"
 ).read()
 sys_msg_figure = open(
-    path.join(glb.instructions_dir, f"describe_yolo_{c.YOLO_FIGURE}.txt"), "r"
+    path.join(glb.instructions_dir, f"describe_yolo_{YOLOScene.FIGURE}.txt"),
+    "r",
 ).read()
 sys_msg_formula = open(
     path.join(
-        glb.instructions_dir, f"describe_yolo_{c.YOLO_ISOLATE_FORMULA}.txt"
+        glb.instructions_dir, f"describe_yolo_{YOLOScene.ISOLATE_FORMULA}.txt"
     ),
     "r",
 ).read()
 sys_msg_text = open(
-    path.join(glb.instructions_dir, f"describe_yolo_{c.YOLO_PLAIN_TEXT}.txt"),
+    path.join(
+        glb.instructions_dir, f"describe_yolo_{YOLOScene.PLAIN_TEXT}.txt"
+    ),
     "r",
 ).read()
 sys_msg_table = open(
-    path.join(glb.instructions_dir, f"describe_yolo_{c.YOLO_TABLE}.txt"), "r"
+    path.join(glb.instructions_dir, f"describe_yolo_{YOLOScene.TABLE}.txt"),
+    "r",
 ).read()
 
 yolo_sys_msgs = {
-    c.YOLO_FIGURE: sys_msg_figure,
-    c.YOLO_ISOLATE_FORMULA: sys_msg_formula,
-    c.YOLO_PLAIN_TEXT: sys_msg_text,
-    c.YOLO_TABLE: sys_msg_table,
+    YOLOScene.FIGURE: sys_msg_figure,
+    YOLOScene.ISOLATE_FORMULA: sys_msg_formula,
+    YOLOScene.PLAIN_TEXT: sys_msg_text,
+    YOLOScene.TABLE: sys_msg_table,
 }
-
-
-def idx_to_chunk_type(idx: int) -> str:
-    return idx_2_chunk_type[idx]
-
-
-def chunk_type_to_idx(chunk_type: str) -> int:
-    return chunk_type_2_idx[chunk_type]
 
 
 def office_to_pdf(document_path: str) -> str:

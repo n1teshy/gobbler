@@ -217,7 +217,12 @@ class VideoProcessor(BaseProcessor):
         return [span for span in spans if span.end - span.start >= self.spf]
 
     def process_frames(
-        self, path: str, no_caption: bool
+        self,
+        path: str,
+        no_caption: bool,
+        frame_scene_to_prompt: Optional[dict[ClipScene, str]] = None,
+        frame_fallback_prompt: Optional[str] = None,
+        identify_keywords: bool = True,
     ) -> tuple[list[Image], list[dict[str, float]]]:
         frames, frame_time_ranges = extract_frames(
             path,
@@ -233,7 +238,14 @@ class VideoProcessor(BaseProcessor):
                 if scene is ClipScene.VIDEO_CONFERENCE:
                     continue
                 image_objects.append(
-                    self.image_processor.process(frames[idx]), no_caption
+                    self.image_processor.process(
+                        frames[idx],
+                        no_caption,
+                        None,
+                        frame_scene_to_prompt,
+                        frame_fallback_prompt,
+                        identify_keywords,
+                    ),
                 )
                 processed_time_ranges.append(frame_time_ranges[idx])
             return image_objects, processed_time_ranges
@@ -265,6 +277,9 @@ class VideoProcessor(BaseProcessor):
         no_caption: bool = False,
         audio_only: bool = False,
         frames_only: bool = False,
+        frame_scene_to_prompt: Optional[dict[ClipScene, str]] = None,
+        frame_fallback_prompt: Optional[str] = None,
+        identify_keywords: bool = True,
     ) -> Union[list[Span], tuple[list[Image], list[dict[str, float]]]]:
         """
         Returns list[Span] for audio + video or audio_only.
@@ -291,11 +306,23 @@ class VideoProcessor(BaseProcessor):
                 )
 
         if frames_only:
-            return self.process_frames(path, no_caption)
+            return self.process_frames(
+                path,
+                no_caption,
+                frame_scene_to_prompt,
+                identify_keywords,
+                frame_fallback_prompt,
+            )
 
         spans = self.get_spans(path, metadata)
         if not audio_only:
-            frames, frame_time_ranges = self.process_frames(path, no_caption)
+            frames, frame_time_ranges = self.process_frames(
+                path,
+                no_caption,
+                frame_scene_to_prompt,
+                identify_keywords,
+                frame_fallback_prompt,
+            )
             self.assign_frames(spans, frames, frame_time_ranges)
 
         return spans

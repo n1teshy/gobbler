@@ -9,10 +9,11 @@ import gobbler.constants as c
 import gobbler.cred as cred
 import gobbler.globals as glb
 from gobbler.logger import logger
-from gobbler.models.core import run_clip
+from gobbler.models.core import run_clip, run_keybert
 from gobbler.models.utils import ClipScene
 from gobbler.processors.image.models import Image
 from gobbler.processors.image.utils import (
+    sys_msg_desc_table,
     sys_msg_desc_text,
     sys_msg_dsc_diagram,
     sys_msg_dsc_entities,
@@ -132,35 +133,47 @@ class ImageProcessor(BaseProcessor):
         self,
         path: str,
         scene: ClipScene,
-        abort_at_unknown: bool = False,
-        unknown_desc: Optional[str] = None,
-        fidelity: Literal["low", "high"] = "auto",
+        scene_to_prompt: dict[ClipScene, str],
+        fallback_prompt: str,
+        identify_keywords: bool,
+        prompts_from_user: bool,
     ) -> Optional[dict[str, str]]:
         if scene in self.scene_to_desc:
             return self.scene_to_desc[scene]
 
-        if scene == ClipScene.DIAGRAM:
-            sys_msg = sys_msg_dsc_diagram
-        elif scene == ClipScene.TEXT:
-            sys_msg = sys_msg_desc_text
-        else:
-            if abort_at_unknown:
-                return unknown_desc
-            sys_msg = sys_msg_dsc_entities
-
+        sys_msg = scene_to_prompt.get(scene, fallback_prompt)
+        res_format = "text" if prompts_from_user else "json_object"
         img_desc = self.call_4o(
-            sys_msg, stringify_image(path), fidelity=fidelity
+            sys_msg,
+            stringify_image(path),
+            response_format=res_format,
+            fidelity="auto",
         )
-        data = json.loads(img_desc)
-        if type(data) is dict and "description" in data and "keywords" in data:
+        if prompts_from_user:
+            data = {"description": img_desc, "keywords": []}
+            if identify_keywords:
+                data["keywords"] = [word for word, _ in run_keybert(img_desc)]
             return data
-        logger.error(f"invalid image description, missing keys: {img_desc}")
+        else:
+            data = json.loads(img_desc)
+            if (
+                type(data) is dict
+                and "description" in data
+                and "keywords" in data
+            ):
+                return data
+            logger.error(
+                f"invalid image description, missing keys: {img_desc}"
+            )
 
     def process(
         self,
         path: str,
         no_caption: bool = False,
         scene: Optional[ClipScene] = None,
+        scene_to_prompt: Optional[dict[ClipScene, str]] = None,
+        fallback_prompt: Optional[str] = None,
+        identify_keywords: bool = True,
     ) -> Image:
         if not os.path.exists(path):
             raise FileNotFoundError(f"File not found: {path}")
@@ -169,20 +182,33 @@ class ImageProcessor(BaseProcessor):
         if not metadata["mime_type"].startswith("image/"):
             raise ValueError(f"Doesn't seem to be an image {path}")
 
+        prompts_from_user = scene_to_prompt is not None
         scene = scene or self.classify(path)
+        scene_to_prompt = scene_to_prompt or {
+            ClipScene.DIAGRAM: sys_msg_dsc_diagram,
+            ClipScene.TABULAR: sys_msg_desc_table,
+            ClipScene.TEXT: sys_msg_desc_text,
+        }
+        fallback_prompt = fallback_prompt or sys_msg_dsc_entities
         shape = cv2.imread(path).shape[:2]
 
-        # Check global no-caption mode
         if no_caption:
             return Image(
                 **metadata,
                 shape=f"{shape[0]}x{shape[1]}",
                 scene=scene,
-                description="",  # Placeholder for batch processing
-                keywords=[],  # Placeholder for batch processing
+                description="",
+                keywords=[],
             )
 
-        desc_dict = self.describe(path, scene)
+        desc_dict = self.describe(
+            path,
+            scene,
+            scene_to_prompt,
+            fallback_prompt,
+            prompts_from_user,
+            identify_keywords,
+        )
         if desc_dict is None:
             raise RuntimeError(f"Failed to describe image: {path}")
 

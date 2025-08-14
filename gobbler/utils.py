@@ -44,7 +44,7 @@ def get_file_metadata(path: str, uri: Optional[str] = None) -> dict:
     if mime is None:
         raise ValueError(f"Unsupported file {path}")
     return dict(
-        uri=uri or path,
+        uri=uri or path.replace("\\", "/"),
         mime_type=mime,
         size=os.path.getsize(path),
         version=int(os.path.getmtime(path)),

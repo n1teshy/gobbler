@@ -3,6 +3,7 @@ from typing import Optional, Union
 
 import numpy as np
 from doclayout_yolo import YOLOv10
+from keybert import KeyBERT
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
@@ -11,14 +12,17 @@ import gobbler.globals as glb
 from gobbler.logger import logger
 from gobbler.models.utils import (
     ClipScene,
+    YOLOScene,
     get_cuda_memory,
     get_yolo_path,
     idx_to_clip_scene,
+    label_to_yolo_scene,
 )
 from gobbler.utils import make_pil_images
 
 clip_utils = (None, None)
 yolo_model = None
+keybert_model = None
 
 clip_scene_descriptions = [
     "a photo of a video conference showing people and/or their profiles",
@@ -129,10 +133,10 @@ def should_merge(
 
     label1, label2 = box1[4], box2[4]
     mergeable_groups = [
-        {c.YOLO_ISOLATE_FORMULA, c.YOLO_FORMULA_CAPTION},
-        {c.YOLO_TABLE, c.YOLO_TABLE_CAPTION, c.YOLO_TABLE_FOOTNOTE},
-        {c.YOLO_FIGURE, c.YOLO_FIGURE_CAPTION},
-        {c.YOLO_PLAIN_TEXT},
+        {YOLOScene.ISOLATE_FORMULA, YOLOScene.FORMULA_CAPTION},
+        {YOLOScene.TABLE, YOLOScene.TABLE_CAPTION, YOLOScene.TABLE_FOOTNOTE},
+        {YOLOScene.FIGURE, YOLOScene.FIGURE_CAPTION},
+        {YOLOScene.PLAIN_TEXT},
     ]
 
     for group in mergeable_groups:
@@ -141,19 +145,19 @@ def should_merge(
             avg_height = (abs(box1[3] - box1[1]) + abs(box2[3] - box2[1])) / 2
             return distance < proximity_factor * avg_height
 
-    if label1 == c.YOLO_TITLE and label2 in {
-        c.YOLO_FIGURE,
-        c.YOLO_PLAIN_TEXT,
-        c.YOLO_TABLE,
+    if label1 == YOLOScene.TITLE and label2 in {
+        YOLOScene.FIGURE,
+        YOLOScene.PLAIN_TEXT,
+        YOLOScene.TABLE,
     }:
         if box1[3] < box2[1]:
             distance = calculate_distance(box1, box2)
             avg_height = (abs(box1[3] - box1[1]) + abs(box2[3] - box2[1])) / 2
             return distance < proximity_factor * avg_height
-    elif label2 == c.YOLO_TITLE and label1 in {
-        c.YOLO_FIGURE,
-        c.YOLO_PLAIN_TEXT,
-        c.YOLO_TABLE,
+    elif label2 == YOLOScene.TITLE and label1 in {
+        YOLOScene.FIGURE,
+        YOLOScene.PLAIN_TEXT,
+        YOLOScene.TABLE,
     }:
         if box2[3] < box1[1]:
             distance = calculate_distance(box1, box2)
@@ -171,10 +175,10 @@ def merge_boxes(box1: tuple, box2: tuple) -> tuple:
 
     label1, label2 = box1[4], box2[4]
     general_labels = {
-        c.YOLO_TABLE,
-        c.YOLO_FIGURE,
-        c.YOLO_ISOLATE_FORMULA,
-        c.YOLO_PLAIN_TEXT,
+        YOLOScene.TABLE,
+        YOLOScene.FIGURE,
+        YOLOScene.ISOLATE_FORMULA,
+        YOLOScene.PLAIN_TEXT,
     }
 
     if label1 in general_labels:
@@ -242,12 +246,12 @@ def run_yolo(
     fallback_clip_threshold: Optional[float] = None,
     filled_pixels_stddev: Optional[int] = None,
 ) -> list[
-    list[tuple[float, float, float, float, Optional[str], Optional[float]]]
+    list[
+        tuple[float, float, float, float, Optional[YOLOScene], Optional[float]]
+    ]
 ]:
     """
-    Returns `list[tuple[x1, y1, x2, y2, label, confidence]]` per image.
-    `label` can be one of 'title', 'plain text', 'abandon', 'figure', 'figure_caption',
-    'table', 'table_caption', 'table_footnote', 'isolate_formula' and 'formula_caption'.
+    Returns `list[tuple[x1, y1, x2, y2, YOLOScene | None, confidence]]` per image.
     """
     global yolo_model
     result = []
@@ -294,7 +298,9 @@ def run_yolo(
             xyxy = list(map(int, box.xyxy.tolist()[0]))
             yolo_label = yolo_model.names[box.cls.item()]
             confidence = box.conf.item()
-            boxes.append(tuple(xyxy + [yolo_label, confidence]))
+            boxes.append(
+                tuple(xyxy + [label_to_yolo_scene(yolo_label), confidence])
+            )
 
         grouped_boxes = group_related_boxes(boxes)
         # TODO: check if some *_caption type boxes were not grouped
@@ -309,9 +315,9 @@ def run_yolo(
             prob = prob if prob >= fallback_clip_threshold else None
             if prob is not None:
                 clip_label = {
-                    ClipScene.TABULAR: c.YOLO_TABLE,
-                    ClipScene.TEXT: c.YOLO_PLAIN_TEXT,
-                    ClipScene.DIAGRAM: c.YOLO_FIGURE,
+                    ClipScene.TABULAR: YOLOScene.TABLE,
+                    ClipScene.TEXT: YOLOScene.PLAIN_TEXT,
+                    ClipScene.DIAGRAM: YOLOScene.FIGURE,
                 }.get(scene, None)
             push_this = (
                 0,
@@ -325,3 +331,11 @@ def run_yolo(
         else:
             result.append(grouped_boxes)
     return result
+
+
+def run_keybert(text: str) -> list[tuple[str, float]]:
+    global keybert_model
+
+    if keybert_model is None:
+        keybert_model = KeyBERT("bert-base-nli-mean-tokens")
+    return keybert_model.extract_keywords(text)
