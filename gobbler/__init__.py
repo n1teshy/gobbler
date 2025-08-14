@@ -1,8 +1,4 @@
 # noqa
-import os
-
-os.environ["CURL_CA_BUNDLE"] = ""
-
 from gobbler.db import (
     ingest_document,
     ingest_image,
