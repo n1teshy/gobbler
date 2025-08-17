@@ -34,3 +34,18 @@ MILVUS_USER=
 MILVUS_PASSWORD=
 
 OFFICE_CONVERSION_SERVER=
+
+--- Advanced usage ---
+
+CLIP_PROB_THRESHOLD = CLIP confidence less than this won't be trusted, default: 0.65
+SSIM_THRESHOLD = SSIM similarity score that means video-frames are too similar and only one will be taken
+    default: 0.9
+COLOR_HIST_THRESHOLD = Color historgram similarity score that means video-frames are too similar and only
+    one will be taken, default: 0.9
+VIDEO_SECONDS_PER_FRAME = How many seconds to skip in a video to get the next frame, default: 4
+
+YOLO_PROB_THRESHOLD = YOLO confidence less than this won't be trusted, default: 0.65
+YOLO_FALLBACK_CLIP_THRESHOLD = If YOLO fails to identify boxes in an image CLIP will be used to classify
+    the entire image, this threshold will be used instead of CLIP_PROB_THRESHOLD, default: 0.75
+FILLED_PIXEL_REGION_STDDEV = This standard deviation of a pixel region means there is content in that pixel
+    region, this is used to check if YOLO missed regions with content in an image, default: 22

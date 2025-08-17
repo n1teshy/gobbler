@@ -8,7 +8,7 @@ import random
 import string
 import tempfile
 import time
-from typing import Optional, Union
+from typing import Any, Optional, Union
 from urllib.parse import urljoin, urlparse
 
 import appdirs
@@ -135,3 +135,7 @@ def cleanup_temp_file(filepath: str) -> None:
             os.remove(filepath)
         except Exception:
             pass
+
+
+def this_or_that(this: Any, that: Any) -> Any:
+    return this if this is not None else that

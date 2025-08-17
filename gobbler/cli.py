@@ -1,19 +1,13 @@
 import argparse
 import json
 import os
+import platform
 import sys
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
-import tqdm
-
+import gobbler.globals as glb
 import gobbler.meta as meta
-from gobbler.logger import logger
-from gobbler.processors.docs.core import DocumentProcessor
-from gobbler.processors.html.core import HTMLProcessor
-from gobbler.processors.image.core import ImageProcessor
-from gobbler.processors.video.core import VideoProcessor
-from gobbler.utils import get_mime_type
 
 BANNER = f"""
    _____       _     _     _
@@ -23,7 +17,6 @@ BANNER = f"""
  | |__| | (_) | |_) | |_) | |  __/ |
   \_____|\___/|_.__/|_.__/|_|\___|_|   v{meta.version}
 """
-
 SUPPORTED_EXTENSIONS = {
     "document": {".pdf", ".doc", ".docx", ".ppt", ".pptx"},
     "html": {".html", ".htm", ".xhtml"},
@@ -32,231 +25,14 @@ SUPPORTED_EXTENSIONS = {
 }
 
 
-def clear_screen():
-    print("\033[2J\033[H", end="", flush=True)
-
-
-def load_processing_state(state_file: str) -> dict[str, List[str]]:
-    if not os.path.exists(state_file):
-        return {"processed": [], "failed": []}
-
-    with open(state_file, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_processing_state(
-    state_file: str, processed: List[str], failed: List[Tuple[str, str]]
-):
-    state = {
-        "processed": processed,
-        "failed": [{"file": f, "error": e} for f, e in failed],
-    }
-    with open(state_file, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2, ensure_ascii=False)
-
-
-def collect_usage_stats(processors: dict) -> dict:
-    stats = {}
-
-    for proc_class, processor in processors.items():
-        proc_stats = {}
-
-        if proc_class == "ImageProcessor":
-            if hasattr(processor, "usage_data") and processor.usage_data:
-                proc_stats["vision"] = processor.usage_data
-
-        elif proc_class == "VideoProcessor":
-            if (
-                hasattr(processor, "compl_usage_data")
-                and processor.compl_usage_data
-            ):
-                proc_stats["completion"] = processor.compl_usage_data
-            if (
-                hasattr(processor, "txpn_usage_data")
-                and processor.txpn_usage_data
-            ):
-                proc_stats["transcription"] = processor.txpn_usage_data
-
-        if proc_stats:
-            stats[proc_class] = proc_stats
-
-    return stats
-
-
-def display_usage_stats(stats: dict[str, Any]):
-    if not stats:
-        return
-
-    print("\n" + "=" * 60)
-    print("API USAGE STATISTICS")
-    print("=" * 60)
-
-    total_prompt_tokens = 0
-    total_completion_tokens = 0
-    total_seconds = 0
-
-    for processor_class, processor_stats in stats.items():
-        print(f"\n{processor_class}:")
-
-        for api_type, models_data in processor_stats.items():
-            print(f"  {api_type.capitalize()} API:")
-
-            for model, usage in models_data.items():
-                print(f"    {model}:")
-
-                if "prompt_tokens" in usage:
-                    prompt_tokens = usage["prompt_tokens"]
-                    completion_tokens = usage.get("completion_tokens", 0)
-                    print(f"      Prompt tokens: {prompt_tokens:,}")
-                    print(f"      Completion tokens: {completion_tokens:,}")
-                    total_prompt_tokens += prompt_tokens
-                    total_completion_tokens += completion_tokens
-
-                if "seconds" in usage:
-                    seconds = usage["seconds"]
-                    print(f"      Audio seconds: {seconds:,.1f}")
-                    total_seconds += seconds
-
-    print(f"\nTOTAL USAGE:")
-    if total_prompt_tokens > 0 or total_completion_tokens > 0:
-        print(f"  Prompt tokens: {total_prompt_tokens:,}")
-        print(f"  Completion tokens: {total_completion_tokens:,}")
-        print(
-            f"  Total tokens: {(total_prompt_tokens + total_completion_tokens):,}"
-        )
-    if total_seconds > 0:
-        print(f"  Audio seconds: {total_seconds:,.1f}")
-    print("=" * 60)
-
-
-def get_processor_for_file(file_path: str) -> Optional[type]:
-    mime_type = get_mime_type(file_path)
-    if not mime_type:
-        return None
-
-    extension = Path(file_path).suffix.lower()
-
-    if (
-        mime_type.startswith("image/")
-        or extension in SUPPORTED_EXTENSIONS["image"]
-    ):
-        return ImageProcessor
-    elif (
-        mime_type.startswith("video/")
-        or extension in SUPPORTED_EXTENSIONS["video"]
-    ):
-        return VideoProcessor
-    elif (
-        mime_type == "application/pdf"
-        or extension in SUPPORTED_EXTENSIONS["document"]
-    ):
-        return DocumentProcessor
-    elif (
-        mime_type in ["text/html", "application/xhtml+xml"]
-        or extension in SUPPORTED_EXTENSIONS["html"]
-    ):
-        return HTMLProcessor
-
-    return None
-
-
-def collect_files(input_path: str, recursive: bool = True) -> List[str]:
-    files = []
-    input_path_obj = Path(input_path)
-
-    if input_path_obj.is_file():
-        if get_processor_for_file(input_path):
-            files.append(input_path)
-    elif input_path_obj.is_dir():
-        pattern = "**/*" if recursive else "*"
-        for file_path in input_path_obj.glob(pattern):
-            if file_path.is_file() and get_processor_for_file(str(file_path)):
-                files.append(str(file_path))
-
-    return files
-
-
-def ensure_output_structure(
-    input_path: str, output_dir: str, file_path: str
-) -> str:
-    input_path_obj = Path(input_path)
-    file_path_obj = Path(file_path)
-    output_dir_obj = Path(output_dir)
-
-    if input_path_obj.is_file():
-        return str(output_dir_obj)
-
-    relative_path = file_path_obj.relative_to(input_path_obj)
-    output_subdir = output_dir_obj / relative_path.parent
-    output_subdir.mkdir(parents=True, exist_ok=True)
-
-    return str(output_subdir)
-
-
-def process_single_file(
-    file_path: str,
-    output_dir: str,
-    processors: dict[str, Any],
-    args: Optional[argparse.Namespace] = None,
-    progress_bar: Optional[tqdm.tqdm] = None,
-) -> Tuple[bool, Optional[str]]:
-    try:
-        processor_class = get_processor_for_file(file_path)
-        if not processor_class:
-            error_msg = f"No processor found for file: {file_path}"
-            logger.warning(error_msg)
-            return False, error_msg
-
-        processor = processors[processor_class.__name__]
-
-        if progress_bar:
-            file_name = Path(file_path).name
-            progress_bar.set_description(f"{file_name}")
-
-        if processor_class == VideoProcessor:
-            results = processor.process(file_path, no_caption=args.no_caption)
-        elif processor_class == ImageProcessor:
-            results = [
-                processor.process(file_path, no_caption=args.no_caption)
-            ]
-        elif processor_class == DocumentProcessor:
-            results = processor.process(file_path, no_caption=args.no_caption)
-        elif processor_class == HTMLProcessor:
-            media_base = getattr(args, "html_media_base", "")
-            text_result = processor.process(
-                file_path, media_base, no_caption=args.no_caption
-            )
-
-            file_stem = Path(file_path).stem
-            output_file = Path(output_dir) / f"{file_stem}.txt"
-
-            with open(output_file, "w", encoding="utf-8") as f:
-                f.write(text_result)
-
-            return True, None
-
-        file_stem = Path(file_path).stem
-        output_file = Path(output_dir) / f"{file_stem}.json"
-
-        json_results = [result.to_json() for result in results]
-
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(
-                json_results, f, indent=2, ensure_ascii=False, default=str
-            )
-
-        logger.info(f"Processed {file_path} -> {output_file}")
-        return True, None
-
-    except Exception as e:
-        error_msg = f"Failed to process {file_path}: {str(e)}"
-        logger.error(error_msg)
-        return False, error_msg
-
-
 def main():
+    def clear_screen():
+        os.system("cls" if platform.system() == "Windows" else "clear")
+
     clear_screen()
     print(BANNER)
+
+    # ------- parser -------
 
     parser = argparse.ArgumentParser(
         prog=meta.name,
@@ -267,85 +43,22 @@ def main():
         usage=argparse.SUPPRESS,
     )
 
-    parser.add_argument("input", help="Input file or directory to process")
+    parser.add_argument(
+        "input", help="Input file or directory to process", metavar=""
+    )
 
     parser.add_argument(
         "-o",
         "--output",
         default="./output",
         help="Output directory for JSON results",
+        metavar="",
     )
 
     parser.add_argument(
         "--no-recursive",
         action="store_true",
         help="Don't process subdirectories recursively",
-    )
-
-    img_group = parser.add_argument_group("Image Processing Options")
-    img_group.add_argument(
-        "--clip-prob-threshold",
-        type=float,
-        help="CLIP probability threshold for scene classification",
-    )
-    img_group.add_argument(
-        "--image-heur-threshold",
-        type=float,
-        help="Heuristic threshold for image classification",
-    )
-    img_group.add_argument(
-        "--no-caption",
-        action="store_true",
-        help="Skip image captioning (placeholder for batch processing later)",
-    )
-
-    vid_group = parser.add_argument_group("Video Processing Options")
-    vid_group.add_argument(
-        "--seconds-per-frame", type=int, help="Extract one frame per N seconds"
-    )
-    vid_group.add_argument(
-        "--ssim-threshold",
-        type=float,
-        help="SSIM threshold for frame similarity",
-    )
-    vid_group.add_argument(
-        "--color-hist-threshold",
-        type=float,
-        help="Color histogram threshold for frame similarity",
-    )
-    vid_group.add_argument(
-        "--audio-only",
-        action="store_true",
-        help="Process only audio from video files",
-    )
-    vid_group.add_argument(
-        "--frames-only",
-        action="store_true",
-        help="Process only frames from video files",
-    )
-
-    doc_group = parser.add_argument_group("Document Processing Options")
-    doc_group.add_argument(
-        "--yolo-prob-threshold",
-        type=float,
-        help="YOLO probability threshold for object detection",
-    )
-    doc_group.add_argument(
-        "--yolo-fallback-clip-threshold",
-        type=float,
-        help="YOLO fallback CLIP threshold",
-    )
-    doc_group.add_argument(
-        "--filled-pixel-region-stddev",
-        type=int,
-        help="Standard deviation for filled pixel regions",
-    )
-
-    html_group = parser.add_argument_group("HTML Processing Options")
-    html_group.add_argument(
-        "--html-media-base",
-        type=str,
-        help="Base URL or directory path for resolving relative media paths in HTML files",
     )
 
     parser.add_argument(
@@ -370,16 +83,87 @@ def main():
         "--state-file",
         default=".gobbler_state.json",
         help="File to save processing state",
+        metavar="",
+    )
+
+    parser.add_argument(
+        "--no-ocr",
+        action="store_true",
+        help="Skip image captioning (placeholder for batch processing later)",
+    )
+
+    img_group = parser.add_argument_group("Image Processing Options")
+    img_group.add_argument(
+        "--clip-prob-threshold",
+        type=float,
+        help="CLIP probability threshold for scene classification",
+        metavar="",
+    )
+
+    vid_group = parser.add_argument_group("Video Processing Options")
+    vid_group.add_argument(
+        "--seconds-per-frame",
+        type=int,
+        help="Extract one frame per N seconds",
+        metavar="",
+    )
+    vid_group.add_argument(
+        "--ssim-threshold",
+        type=float,
+        help="SSIM threshold for frame similarity",
+        metavar="",
+    )
+    vid_group.add_argument(
+        "--color-hist-threshold",
+        type=float,
+        help="Color histogram threshold for frame similarity",
+        metavar="",
+    )
+    vid_group.add_argument(
+        "--audio-only",
+        action="store_true",
+        help="Process only audio from video files",
+    )
+    vid_group.add_argument(
+        "--frames-only",
+        action="store_true",
+        help="Process only frames from video files",
+    )
+
+    doc_group = parser.add_argument_group("Document Processing Options")
+    doc_group.add_argument(
+        "--yolo-prob-threshold",
+        type=float,
+        help="YOLO probability threshold for object detection",
+        metavar="",
+    )
+    doc_group.add_argument(
+        "--yolo-fallback-clip-threshold",
+        type=float,
+        help="YOLO fallback CLIP threshold",
+        metavar="",
+    )
+    doc_group.add_argument(
+        "--filled-pixel-region-stddev",
+        type=int,
+        help="Standard deviation for filled pixel regions",
+        metavar="",
+    )
+    doc_group.add_argument(
+        "--use-fitz",
+        action="store_true",
+        help="Use fitz to extract text from plain_text regions",
+    )
+
+    html_group = parser.add_argument_group("HTML Processing Options")
+    html_group.add_argument(
+        "--html-media-base",
+        type=str,
+        help="Base URL or directory path for resolving relative media paths in HTML files",
+        metavar="",
     )
 
     args = parser.parse_args(sys.argv[1:] or ["-h"])
-
-    input_path = Path(args.input)
-    if not input_path.exists():
-        print(f"Error: Input path '{args.input}' does not exist")
-        sys.exit(1)
-
-    import gobbler.globals as glb
 
     if args.clip_prob_threshold is not None:
         glb.clip_prob_thresh = args.clip_prob_threshold
@@ -396,6 +180,241 @@ def main():
     if args.filled_pixel_region_stddev is not None:
         glb.filled_pixel_region_stddev = args.filled_pixel_region_stddev
 
+    # ------- heavy imports -------
+
+    import tqdm
+
+    from gobbler.logger import logger
+    from gobbler.processors.docs.core import DocumentProcessor
+    from gobbler.processors.html.core import HTMLProcessor
+    from gobbler.processors.image.core import ImageProcessor
+    from gobbler.processors.video.core import VideoProcessor
+    from gobbler.utils import get_mime_type
+
+    # ------- util functions -------
+
+    def load_processing_state(state_file: str) -> dict[str, List[str]]:
+        if not os.path.exists(state_file):
+            return {"processed": [], "failed": []}
+
+        with open(state_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def save_processing_state(
+        state_file: str, processed: List[str], failed: List[Tuple[str, str]]
+    ):
+        state = {
+            "processed": processed,
+            "failed": [{"file": f, "error": e} for f, e in failed],
+        }
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2, ensure_ascii=False)
+
+    def collect_usage_stats(processors: dict) -> dict:
+        stats = {}
+
+        for proc_class, processor in processors.items():
+            proc_stats = {}
+
+            if proc_class == "ImageProcessor":
+                if hasattr(processor, "usage_data") and processor.usage_data:
+                    proc_stats["vision"] = processor.usage_data
+
+            elif proc_class == "VideoProcessor":
+                if (
+                    hasattr(processor, "compl_usage_data")
+                    and processor.compl_usage_data
+                ):
+                    proc_stats["completion"] = processor.compl_usage_data
+                if (
+                    hasattr(processor, "txpn_usage_data")
+                    and processor.txpn_usage_data
+                ):
+                    proc_stats["transcription"] = processor.txpn_usage_data
+
+            if proc_stats:
+                stats[proc_class] = proc_stats
+
+        return stats
+
+    def display_usage_stats(stats: dict[str, Any]):
+        if not stats:
+            return
+
+        print("\n" + "=" * 60)
+        print("API USAGE STATISTICS")
+        print("=" * 60)
+
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
+        total_seconds = 0
+
+        for processor_class, processor_stats in stats.items():
+            print(f"\n{processor_class}:")
+
+            for api_type, models_data in processor_stats.items():
+                print(f"  {api_type.capitalize()} API:")
+
+                for model, usage in models_data.items():
+                    print(f"    {model}:")
+
+                    if "prompt_tokens" in usage:
+                        prompt_tokens = usage["prompt_tokens"]
+                        completion_tokens = usage.get("completion_tokens", 0)
+                        print(f"      Prompt tokens: {prompt_tokens:,}")
+                        print(
+                            f"      Completion tokens: {completion_tokens:,}"
+                        )
+                        total_prompt_tokens += prompt_tokens
+                        total_completion_tokens += completion_tokens
+
+                    if "seconds" in usage:
+                        seconds = usage["seconds"]
+                        print(f"      Audio seconds: {seconds:,.1f}")
+                        total_seconds += seconds
+
+        print(f"\nTOTAL USAGE:")
+        if total_prompt_tokens > 0 or total_completion_tokens > 0:
+            print(f"  Prompt tokens: {total_prompt_tokens:,}")
+            print(f"  Completion tokens: {total_completion_tokens:,}")
+            print(
+                f"  Total tokens: {(total_prompt_tokens + total_completion_tokens):,}"
+            )
+        if total_seconds > 0:
+            print(f"  Audio seconds: {total_seconds:,.1f}")
+        print("=" * 60)
+
+    def get_processor_for_file(file_path: str) -> Optional[type]:
+        mime_type = get_mime_type(file_path)
+        if not mime_type:
+            return None
+
+        extension = Path(file_path).suffix.lower()
+
+        if (
+            mime_type.startswith("image/")
+            or extension in SUPPORTED_EXTENSIONS["image"]
+        ):
+            return ImageProcessor
+        elif (
+            mime_type.startswith("video/")
+            or extension in SUPPORTED_EXTENSIONS["video"]
+        ):
+            return VideoProcessor
+        elif (
+            mime_type == "application/pdf"
+            or extension in SUPPORTED_EXTENSIONS["document"]
+        ):
+            return DocumentProcessor
+        elif (
+            mime_type in ["text/html", "application/xhtml+xml"]
+            or extension in SUPPORTED_EXTENSIONS["html"]
+        ):
+            return HTMLProcessor
+
+        return None
+
+    def collect_files(input_path: str, recursive: bool = True) -> List[str]:
+        files = []
+        input_path_obj = Path(input_path)
+
+        if input_path_obj.is_file():
+            if get_processor_for_file(input_path):
+                files.append(input_path)
+        elif input_path_obj.is_dir():
+            pattern = "**/*" if recursive else "*"
+            for file_path in input_path_obj.glob(pattern):
+                if file_path.is_file() and get_processor_for_file(
+                    str(file_path)
+                ):
+                    files.append(str(file_path))
+        return files
+
+    def ensure_output_structure(
+        input_path: str, output_dir: str, file_path: str
+    ) -> str:
+        input_path_obj = Path(input_path)
+        file_path_obj = Path(file_path)
+        output_dir_obj = Path(output_dir)
+
+        if input_path_obj.is_file():
+            return str(output_dir_obj)
+
+        relative_path = file_path_obj.relative_to(input_path_obj)
+        output_subdir = output_dir_obj / relative_path.parent
+        output_subdir.mkdir(parents=True, exist_ok=True)
+
+        return str(output_subdir)
+
+    def process_single_file(
+        file_path: str,
+        output_dir: str,
+        processors: dict[str, Any],
+        args: Optional[argparse.Namespace] = None,
+        progress_bar: Optional[tqdm.tqdm] = None,
+    ) -> Tuple[bool, Optional[str]]:
+        try:
+            processor_class = get_processor_for_file(file_path)
+            if not processor_class:
+                error_msg = f"No processor found for file: {file_path}"
+                logger.warning(error_msg)
+                return False, error_msg
+
+            processor = processors[processor_class.__name__]
+
+            if progress_bar:
+                file_name = Path(file_path).name
+                progress_bar.set_description(f"{file_name}")
+
+            if processor_class == VideoProcessor:
+                results = processor.process(file_path, no_ocr=args.no_ocr)
+            elif processor_class == ImageProcessor:
+                results = [processor.process(file_path, no_ocr=args.no_ocr)]
+            elif processor_class == DocumentProcessor:
+                results = processor.process(
+                    file_path,
+                    no_ocr=args.no_ocr,
+                    use_fitz_on_text=args.use_fitz,
+                )
+            elif processor_class == HTMLProcessor:
+                media_base = getattr(args, "html_media_base", "")
+                text_result = processor.process(
+                    file_path, media_base, no_ocr=args.no_ocr
+                )
+
+                file_stem = Path(file_path).stem
+                output_file = Path(output_dir) / f"{file_stem}.txt"
+
+                with open(output_file, "w", encoding="utf-8") as f:
+                    f.write(text_result)
+
+                return True, None
+
+            file_stem = Path(file_path).stem
+            output_file = Path(output_dir) / f"{file_stem}.json"
+
+            json_results = [result.to_json() for result in results]
+
+            with open(output_file, "w", encoding="utf-8") as f:
+                json.dump(
+                    json_results, f, indent=2, ensure_ascii=False, default=str
+                )
+
+            logger.info(f"Processed {file_path} -> {output_file}")
+            return True, None
+
+        except Exception as e:
+            error_msg = f"Failed to process {file_path}: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+
+    # ------- processing -------
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: Input path '{args.input}' does not exist")
+        sys.exit(1)
+
     files = collect_files(args.input, recursive=not args.no_recursive)
 
     if not files:
@@ -404,6 +423,8 @@ def main():
             f"Supported extensions: {', '.join(sum(SUPPORTED_EXTENSIONS.values(), set()))}"
         )
         sys.exit(0)
+
+    print(f"Processing {len(files)} files...")
 
     processed_files = []
     failed_files = []
@@ -461,7 +482,6 @@ def main():
             processors["ImageProcessor"] = ImageProcessor()
 
         if any(get_processor_for_file(f) == VideoProcessor for f in files):
-            import gobbler.globals as glb
 
             processors["VideoProcessor"] = VideoProcessor(
                 spf=glb.video_seconds_per_frame,
@@ -478,10 +498,6 @@ def main():
     except Exception as e:
         logger.error(f"Failed to initialize processors: {e}")
         sys.exit(1)
-
-    print(f"Processing {len(files)} files...")
-    if args.no_caption:
-        print("Note: Caption generation skipped")
 
     processed_count = 0
     current_failed = []

@@ -1,10 +1,9 @@
 import io
+import json
 import os
 from typing import Optional
-from urllib.parse import urljoin
 
 import fitz
-import requests
 
 import gobbler.cred as cred
 from gobbler.logger import logger
@@ -12,6 +11,7 @@ from gobbler.models.core import run_keybert, run_yolo
 from gobbler.models.utils import YOLOScene
 from gobbler.processors.docs.models import DocumentObject, Position
 from gobbler.processors.docs.utils import (
+    is_office_to_pdf_available,
     office_to_pdf,
     sys_msg_any_caption,
     yolo_sys_msgs,
@@ -22,33 +22,27 @@ from gobbler.utils import (
     get_file_metadata,
     make_pil_images,
     stringify_image,
+    this_or_that,
 )
 
 
 class DocumentProcessor(BaseProcessor):
     def __init__(self):
-        if cred.OFFICE_CONVERSION_SERVER is None:
+        if not is_office_to_pdf_available():
             logger.warning(
-                "OFFICE_CONVERSION_URL is not set, you'll have a hard time with non-PDF files"
+                "libreoffice is not available, will not be able to process non-PDF files"
             )
-        else:
-            try:
-                url = urljoin(cred.OFFICE_CONVERSION_SERVER, "/ping")
-                assert requests.get(url).status_code == 200
-            except Exception as e:
-                logger.warning(
-                    f"Office conversion server is not reachable: {e}"
-                )
-
         self.image_processor = ImageProcessor()
 
     def process_page(
         self,
         page: fitz.Page,
-        no_caption: bool,
+        no_ocr: bool,
+        use_fitz: bool,
         yolo_class_to_prompt: dict[YOLOScene, str],
         yolo_fallback_prompt: str,
-    ) -> list[tuple[Position, str, str]]:
+        prompts_from_user: bool,
+    ) -> list[tuple[Position, YOLOScene, str]]:
         """
         Returns tuple[position, object_type, description]
         see constants file for YOLO objects.
@@ -65,13 +59,22 @@ class DocumentProcessor(BaseProcessor):
                 box_image = page_image
             else:
                 box_image = page_image.crop(coord)
-            if no_caption:
-                description = ""
-            else:
+            if use_fitz and (
+                scene in (YOLOScene.PLAIN_TEXT, YOLOScene.TITLE)
+                or scene.value.endswith("_caption")
+            ):
+                description = page.get_textbox(fitz.Rect(*coord))
+            elif not no_ocr:
                 sys_msg = yolo_class_to_prompt.get(scene, yolo_fallback_prompt)
                 description = self.image_processor.call_4o(
-                    sys_msg, stringify_image(box_image), response_format="text"
+                    sys_msg,
+                    stringify_image(box_image),
+                    response_format=(
+                        "text" if prompts_from_user else "json_object"
+                    ),
                 )
+            else:
+                description = ""
             results.append((Position(*coord), scene, description))
 
         return results
@@ -79,17 +82,23 @@ class DocumentProcessor(BaseProcessor):
     def process(
         self,
         path: str,
-        no_caption: bool = False,
+        no_ocr: bool = False,
+        use_fitz_on_text: bool = False,
         yolo_class_to_prompt: Optional[dict[YOLOScene, str]] = None,
         yolo_fallback_prompt: Optional[str] = None,
         identify_keywords: bool = True,
     ) -> list[DocumentObject]:
-        """
-        Refer to `gobbler/constants.py` to get the list of accepted
-        keys in `yolo_class_to_prompt`.
-        """
-        yolo_class_to_prompt = yolo_class_to_prompt or yolo_sys_msgs
-        yolo_fallback_prompt = yolo_fallback_prompt or sys_msg_any_caption
+        assert (
+            yolo_class_to_prompt is None == yolo_fallback_prompt is None
+        ), "Either pass both 'yolo_class_to_prompt' and 'yolo_fallback_prompt' or none"
+
+        prompts_from_user = yolo_fallback_prompt is not None
+        yolo_class_to_prompt = this_or_that(
+            yolo_class_to_prompt, yolo_sys_msgs
+        )
+        yolo_fallback_prompt = this_or_that(
+            yolo_fallback_prompt, sys_msg_any_caption
+        )
         metadata = get_file_metadata(path)
         doc_objects = []
         fitz_doc = None
@@ -105,16 +114,26 @@ class DocumentProcessor(BaseProcessor):
             for page_idx, page in enumerate(fitz_doc):
                 page_boxes = self.process_page(
                     page,
-                    no_caption,
+                    no_ocr,
+                    use_fitz_on_text,
                     yolo_class_to_prompt,
                     yolo_fallback_prompt,
+                    prompts_from_user,
                 )
                 for position, label, description in page_boxes:
                     keywords = []
-                    if identify_keywords and description:
+                    if identify_keywords and (
+                        use_fitz_on_text or prompts_from_user
+                    ):
                         keywords = [
                             word for word, _ in run_keybert(description)
                         ]
+                    else:
+                        desc_obj = json.loads(description)
+                        description, keywords = (
+                            desc_obj["description"],
+                            desc_obj["keywords"],
+                        )
 
                     doc_objects.append(
                         DocumentObject(

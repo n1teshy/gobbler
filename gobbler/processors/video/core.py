@@ -219,7 +219,7 @@ class VideoProcessor(BaseProcessor):
     def process_frames(
         self,
         path: str,
-        no_caption: bool,
+        no_ocr: bool,
         frame_scene_to_prompt: Optional[dict[ClipScene, str]] = None,
         frame_fallback_prompt: Optional[str] = None,
         identify_keywords: bool = True,
@@ -240,7 +240,7 @@ class VideoProcessor(BaseProcessor):
                 image_objects.append(
                     self.image_processor.process(
                         frames[idx],
-                        no_caption,
+                        no_ocr,
                         None,
                         frame_scene_to_prompt,
                         frame_fallback_prompt,
@@ -274,7 +274,7 @@ class VideoProcessor(BaseProcessor):
     def process(
         self,
         path: str,
-        no_caption: bool = False,
+        no_ocr: bool = False,
         audio_only: bool = False,
         frames_only: bool = False,
         frame_scene_to_prompt: Optional[dict[ClipScene, str]] = None,
@@ -286,6 +286,9 @@ class VideoProcessor(BaseProcessor):
         Returns list[Image] and list[{"start": <float>, "end": <float>}...]
             for frames_only.
         """
+        assert (
+            frame_scene_to_prompt is None == frame_fallback_prompt is None
+        ), "either pass both 'frame_scene_to_prompt' and 'frame_fallback_prompt' or none"
 
         if not os.path.exists(path):
             raise FileNotFoundError(f"Video file not found: {path}")
@@ -308,7 +311,7 @@ class VideoProcessor(BaseProcessor):
         if frames_only:
             return self.process_frames(
                 path,
-                no_caption,
+                no_ocr,
                 frame_scene_to_prompt,
                 identify_keywords,
                 frame_fallback_prompt,
@@ -318,7 +321,7 @@ class VideoProcessor(BaseProcessor):
         if not audio_only:
             frames, frame_time_ranges = self.process_frames(
                 path,
-                no_caption,
+                no_ocr,
                 frame_scene_to_prompt,
                 identify_keywords,
                 frame_fallback_prompt,

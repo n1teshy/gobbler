@@ -22,7 +22,7 @@ class HTMLProcessor(BaseProcessor):
         self.image_processor = None
         self.video_processor = None
 
-    def get_media_file(self, src: str, base_url: str = "") -> Optional[str]:
+    def get_media_file(self, src: str, base_url: str) -> Optional[str]:
         if os.path.exists(src):
             return src
 
@@ -99,9 +99,7 @@ class HTMLProcessor(BaseProcessor):
             logger.warning(f"Failed to decode base64 data URI: {e}")
             return None
 
-    def process_media_element(
-        self, tag: Tag, base_url: str = ""
-    ) -> Optional[str]:
+    def process_media_element(self, tag: Tag, base_url: str) -> Optional[str]:
         try:
             src = tag.get("src")
             media_path, cleanup_after = None, False
@@ -175,7 +173,7 @@ class HTMLProcessor(BaseProcessor):
         self,
         path: str,
         base_url: str = "",
-        no_caption: bool = None,
+        no_ocr: bool = None,
         img_only: bool = False,
         video_only: bool = False,
     ) -> str:
@@ -186,7 +184,7 @@ class HTMLProcessor(BaseProcessor):
             html_content = f.read()
 
         soup = BeautifulSoup(html_content, "html.parser")
-        if no_caption:
+        if no_ocr:
             return extract(str(soup))
 
         if img_only:

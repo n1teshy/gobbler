@@ -1,6 +1,8 @@
 import os
 import os.path as path
+import shutil
 from pathlib import Path
+from subprocess import CalledProcessError, run
 from urllib.parse import urljoin
 
 import requests
@@ -18,23 +20,28 @@ sys_msg_any_caption = open(
     path.join(glb.instructions_dir, "describe_yolo_any_caption.txt"), "r"
 ).read()
 sys_msg_figure = open(
-    path.join(glb.instructions_dir, f"describe_yolo_{YOLOScene.FIGURE}.txt"),
+    path.join(
+        glb.instructions_dir, f"describe_yolo_{YOLOScene.FIGURE.value}.txt"
+    ),
     "r",
 ).read()
 sys_msg_formula = open(
     path.join(
-        glb.instructions_dir, f"describe_yolo_{YOLOScene.ISOLATE_FORMULA}.txt"
+        glb.instructions_dir,
+        f"describe_yolo_{YOLOScene.ISOLATE_FORMULA.value}.txt",
     ),
     "r",
 ).read()
 sys_msg_text = open(
     path.join(
-        glb.instructions_dir, f"describe_yolo_{YOLOScene.PLAIN_TEXT}.txt"
+        glb.instructions_dir, f"describe_yolo_{YOLOScene.PLAIN_TEXT.value}.txt"
     ),
     "r",
 ).read()
 sys_msg_table = open(
-    path.join(glb.instructions_dir, f"describe_yolo_{YOLOScene.TABLE}.txt"),
+    path.join(
+        glb.instructions_dir, f"describe_yolo_{YOLOScene.TABLE.value}.txt"
+    ),
     "r",
 ).read()
 
@@ -46,12 +53,54 @@ yolo_sys_msgs = {
 }
 
 
+def is_office_to_pdf_available() -> bool:
+    if shutil.which("libreoffice") is not None:
+        return True
+    try:
+        url = urljoin(cred.OFFICE_CONVERSION_SERVER, "/ping")
+        return requests.get(url).status_code == 200
+    except Exception:
+        return False
+
+
 def office_to_pdf(document_path: str) -> str:
-    extension = Path(document_path).suffix.lower()
+    temp_pdf_path = temp_file(".pdf")
+    document_path_obj = Path(document_path)
+    extension = document_path_obj.suffix.lower()
+
+    if shutil.which("libreoffice") is not None:
+        if extension not in {".ppt", ".pptx", ".doc", ".docx"}:
+            raise ValueError(f"Unsupported file format: {document_path}")
+
+        output_dir = Path(temp_pdf_path).parent
+        try:
+            run(
+                [
+                    "libreoffice",
+                    "--headless",
+                    "--convert-to",
+                    "pdf",
+                    "--outdir",
+                    str(output_dir),
+                    str(document_path_obj),
+                ],
+                capture_output=True,
+                check=True,
+            )
+            expected_pdf_path = output_dir / f"{document_path_obj.stem}.pdf"
+            if expected_pdf_path.exists():
+                shutil.move(str(expected_pdf_path), temp_pdf_path)
+                return temp_pdf_path
+            else:
+                raise RuntimeError(f"PDF not generated for {document_path}")
+        except CalledProcessError as e:
+            raise RuntimeError(f"LibreOffice conversion error: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Unexpected error: {e}")
+
     if extension not in {".ppt", ".pptx", ".doc", ".docx"}:
         raise ValueError(f"Unsupported file format: {document_path}")
 
-    temp_pdf_path = temp_file(".pdf")
     with open(document_path, "rb") as f:
         files = {
             "file": (

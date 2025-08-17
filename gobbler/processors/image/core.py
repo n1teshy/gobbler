@@ -25,6 +25,7 @@ from gobbler.utils import (
     get_usage_file,
     make_pil_images,
     stringify_image,
+    this_or_that,
 )
 
 
@@ -169,12 +170,15 @@ class ImageProcessor(BaseProcessor):
     def process(
         self,
         path: str,
-        no_caption: bool = False,
+        no_ocr: bool = False,
         scene: Optional[ClipScene] = None,
         scene_to_prompt: Optional[dict[ClipScene, str]] = None,
         fallback_prompt: Optional[str] = None,
         identify_keywords: bool = True,
     ) -> Image:
+        assert (
+            scene_to_prompt is None == fallback_prompt is None
+        ), "either pass both 'scene_to_prompt' and 'fallback_prompt' or none"
         if not os.path.exists(path):
             raise FileNotFoundError(f"File not found: {path}")
 
@@ -183,16 +187,19 @@ class ImageProcessor(BaseProcessor):
             raise ValueError(f"Doesn't seem to be an image {path}")
 
         prompts_from_user = scene_to_prompt is not None
-        scene = scene or self.classify(path)
-        scene_to_prompt = scene_to_prompt or {
-            ClipScene.DIAGRAM: sys_msg_dsc_diagram,
-            ClipScene.TABULAR: sys_msg_desc_table,
-            ClipScene.TEXT: sys_msg_desc_text,
-        }
+        scene_to_prompt = this_or_that(
+            scene_to_prompt,
+            {
+                ClipScene.DIAGRAM: sys_msg_dsc_diagram,
+                ClipScene.TABULAR: sys_msg_desc_table,
+                ClipScene.TEXT: sys_msg_desc_text,
+            },
+        )
         fallback_prompt = fallback_prompt or sys_msg_dsc_entities
         shape = cv2.imread(path).shape[:2]
+        scene = scene or self.classify(path)
 
-        if no_caption:
+        if no_ocr:
             return Image(
                 **metadata,
                 shape=f"{shape[0]}x{shape[1]}",

@@ -243,6 +243,7 @@ def has_missed_content(
 def run_yolo(
     paths_or_images: list[Union[str, Image.Image]],
     yolo_threshold: Optional[float] = None,
+    raw_boxes: bool = False,
     fallback_clip_threshold: Optional[float] = None,
     filled_pixels_stddev: Optional[int] = None,
 ) -> list[
@@ -301,6 +302,10 @@ def run_yolo(
             boxes.append(
                 tuple(xyxy + [label_to_yolo_scene(yolo_label), confidence])
             )
+
+        if raw_boxes:
+            result.append(boxes)
+            continue
 
         grouped_boxes = group_related_boxes(boxes)
         # TODO: check if some *_caption type boxes were not grouped
