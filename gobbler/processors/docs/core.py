@@ -59,9 +59,13 @@ class DocumentProcessor(BaseProcessor):
                 box_image = page_image
             else:
                 box_image = page_image.crop(coord)
-            if use_fitz and (
-                scene in (YOLOScene.PLAIN_TEXT, YOLOScene.TITLE)
-                or scene.value.endswith("_caption")
+            if (
+                use_fitz
+                and scene
+                and (
+                    scene in (YOLOScene.PLAIN_TEXT, YOLOScene.TITLE)
+                    or scene.value.endswith("_caption")
+                )
             ):
                 description = page.get_textbox(fitz.Rect(*coord))
             elif not no_ocr:
