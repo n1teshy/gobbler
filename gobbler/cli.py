@@ -150,7 +150,7 @@ def main():
         metavar="",
     )
     doc_group.add_argument(
-        "--use-fitz",
+        "--use-fitz-on-text",
         action="store_true",
         help="Use fitz to extract text from plain_text regions",
     )
@@ -374,7 +374,7 @@ def main():
                 results = processor.process(
                     file_path,
                     no_ocr=args.no_ocr,
-                    use_fitz_on_text=args.use_fitz,
+                    use_fitz_on_text=args.use_fitz_on_text,
                 )
             elif processor_class == HTMLProcessor:
                 media_base = getattr(args, "html_media_base", "")
