@@ -1,83 +1,27 @@
-### Gobbler
+# Gobbler Processors API Reference
 
 <p align="center">
   <img src="https://dev.azure.com/Zifo/b0ba8dd6-79d2-4d03-8df4-f8407bc209de/_apis/git/repositories/5e6eeddf-d308-44a9-876e-1f4d3d6159b7/items?path=/assets/1.png&versionDescriptor%5BversionOptions%5D=0&versionDescriptor%5BversionType%5D=0&versionDescriptor%5Bversion%5D=dev/nitesh&resolveLfs=true&%24format=octetStream&api-version=5.0" alt="Poster Image" />
 </p>
 
-#### Glossary
 
-- `Span:` A segment of a video.
-- `Frame:` Videos are images shown one after another quickly, to simulate motion, a frame is one of these images.
-- `Collection:` Milvus equivalent of an SQL table.
-
----
-
-#### Collections schemas
-
-#### spans
-
-- `uri:` VARCHAR(1024) - unique resource identifier for the video (source)
-- `id:` INT64 - primary key, auto-incremented
-- `mime_type:` VARCHAR(128) - media type of the resource
-- `size:` INT64 - size of the resource in bytes
-- `uploaded_by:` VARCHAR(256) - user who uploaded the resource
-- `uploaded_at:` INT64 - upload timestamp (epoch)
-- `version:` FLOAT - version number of the resource
-- `hash:` VARCHAR(64) - hash of the resource for integrity
-- `start:` FLOAT - start time of the span
-- `end:` FLOAT - end time of the span
-- `short_description:` VARCHAR(65535) - brief description of the span
-- `long_description:` VARCHAR(65535) - detailed description of the span
-- `short_description_vector:` FLOAT_VECTOR(3072) - embedding of the short description
-- `long_description_vector:` FLOAT_VECTOR(3072) - embedding of the long description
-- `keywords:` JSON - keywords/tags for the span
-
-#### images
-
-- `id:` INT64 - primary key, auto-incremented
-- `uri:` VARCHAR(1024) - unique resource identifier for the image
-- `mime_type:` VARCHAR(128) - media type of the image
-- `size:` INT64 - size of the image in bytes
-- `uploaded_by:` VARCHAR(256) - user who uploaded the image
-- `uploaded_at:` INT64 - upload timestamp (epoch)
-- `version:` FLOAT - version number of the image
-- `hash:` VARCHAR(64) - hash of the image for integrity
-- `shape:` VARCHAR(16) - shape of the image (e.g., "1920x1080")
-- `scene:` INT8 (nullable) - scene classification label
-- `description:` VARCHAR(65535) - description of the image
-- `description_vector:` FLOAT_VECTOR(3072) - embedding of the description
-- `span_id:` INT64 (nullable) - reference to related span
-- `keywords:` JSON - keywords/tags for the image
-
-#### document_objects
-
-- `uri:` VARCHAR(1024) - unique resource identifier for the source document
-- `id:` INT64 - primary key, auto-incremented
-- `mime_type:` VARCHAR(128) - media type of the document object
-- `size:` INT64 - size of the object in bytes
-- `uploaded_by:` VARCHAR(256) - user who uploaded the object
-- `uploaded_at:` INT64 - upload timestamp (epoch)
-- `version:` FLOAT - version number of the object
-- `hash:` VARCHAR(64) - hash of the object for integrity
-- `page:` INT8 - page number in the document
-- `position:` JSON - position of the object on the page
-- `type:` INT8 - type/classification of the object
-- `content:` VARCHAR(65535) - textual content of the object
-- `content_vector:` FLOAT_VECTOR(3072) - embedding of the content
-- `keywords:` JSON - keywords/tags for
-
----
-
-#### Getting started
+## Getting started
 
 - Ensure [ffmpeg](https://ffmpeg.org/download.html) is installed (skip if you don't need video processing).
 
-- Build and run `Dockerfile.converter`, used to convert documents to PDF for easier processing (skip if you don't need non-PDF document processing).
+- If on windows, Build and run `Dockerfile.converter`, used to convert documents to PDF for easier processing (skip if you don't need non-PDF document processing).
 
   ```bash
   cd <project_directory>
   docker build -f Dockerfile.converter -t <image_name> .
   docker run -d -p 8000:8000 <image_name>
+  ```
+
+- If on linux, perform the last step or install [libreoffice](https://www.libreoffice.org/download/download-libreoffice/) and the necessary fonts, used to convert documents to PDF for easier processing (skip if you don't need non-PDF document processing).
+
+  ```bash
+  sudo apt-get update
+  sudo apt-get install -y libreoffice fonts-noto fonts-noto-cjk fontconfig fonts-freefont-ttf
   ```
 
 - Install Gobbler.
@@ -90,223 +34,238 @@
 
 - Ensure all environment variables are set, read `env_instructions.txt` for more info.
 
-- Initialize Gobbler.
-
-  ```bash
-  from gobbler import init
-  init()
-  ```
-
-- Search away.
-  ```bash
-  from gobbler import search_images
-  images = search_images(query="cat on a mat")
-  ```
-
----
-
-#### Core functions exposed to user
-
-There are `8` core functions to insert and search for information.
-
----
-
-#### `1. from gobbler import init`
+## Quick Usage Snippets
+Minimal examples showing instantiation and calling `process()`.
 
 ```python
-def init() -> None:
+# Document processing (PDF or Office -> PDF)
+from gobbler.processors.docs.core import DocumentProcessor
+
+doc_proc = DocumentProcessor()
+objects = doc_proc.process("/path/to/file.docx", use_fitz_on_text=True)
+for obj in objects:
+    print(obj.page, obj.type, obj.keywords)
 ```
-
-`init()` initializes the Milvus connection and other utilities, it must be called once before calling any search/ingestion functions, this function is [idempotent](https://www.google.com/search?q=idempotent+meaning).
-
----
-
-#### Common function parameters
-
-Some parameters are common to all core functions, they are explained here to reduce redundant lines of text, `ingest_*` parameters apply to all functions for content ingestion, `search_*` apply to all functions for search.
-
-> _common parameters for `ingest_\*` functions\_
-
-- `uri:` The path to the file being ingested, can be a local path or an http/s link.
-- `uploaded_by:` ID of the user uploading the input file, default is `system`.
-- `version:` Version of the file being uploaded, default is `int(<modification_timestamp_of_the_file>)`.
-- `processor:` Images, videos and documents have specific processor classes, this parameters helps the user pass a custom processor instance to be used configured to their needs, a processor instance with generic config is used otherwise.
-
-  - for images, use `from gobbler.processors.image.core import ImageProcessor`
-  - for videos, use `from gobbler.processors.video.core import VideoProcessor`
-  - for images, use `from gobbler.processors.docs.core import DocumentProcessor`
-
-- `extra_fields:` Dynamic fields.
-- `download_headers:` HTTP headers used for downloading the URI's content if it is an http/s link.
-- `throw_if_duplicate:` If set to `True`, this parameters makes the function throw a `ValueError` when the file being processed already exists in the database, the file's SHA-256 hash is used to check for duplicacy.
-
-> _common parameters for `search_\*` functions\_
-
-- `query:` Natural language query.
-- `uploaded_by:` ID of the user who uploaded the file.
-- `keywords:` List of keywords to check in the uploaded files.
-- `mime_type:` Filters by the given mimetype, e.g. `image/png`, `video/mp4`.
-- `uploaded_before:` Returns files uploaded before the given timestamp, in seconds.
-- `uploaded_after:` Returns files uploaded after the given timestamp, in seconds.
-- `extra_fields:` Dynamic fields.
-- `limit:` Expects an integer `n`, limits the number of returned matches to `n`.
-- `skip:` Expects an integer `n`, skips the first `n` matches.
-  > Note: skipping is not supported when the search criteria includes vector similarity.
-
----
-
-#### `2. from gobbler import ingest_image`
 
 ```python
-def ingest_image(
-    uri: str,
-    uploaded_by: str = "system",
-    version: Optional[float] = None,
-    scene: Optional[SceneType] = None,
-    span_id: Optional[int] = None,
-    processor: Optional[ImageProcessor] = None,
-    download_headers: Optional[dict[str, str]] = None,
-    throw_if_duplicate: bool = True,
-) -> Image:
+# Image processing
+from gobbler.processors.image.core import ImageProcessor
+img_proc = ImageProcessor()
+img_obj = img_proc.process("/path/to/image.png")
+print(img_obj.scene, img_obj.description)
 ```
-
-- `scene:` Category of the content in the image, this helps choose a specific prompt to extract the content, e.g. if it's a diagram, the prompt empazises prompt specific instructions. Should be an attribute of the `gobbler.processors.image.utils.SceneType` enum.
-- `span_id:` Images may be linked to a span, this links the image being processed to a span. e.g. the image is a screenshot from a video. This would rarely be used directly.
-  > Look at common parameters of `ingest_*` above for other parameters.
-
----
-
-#### `3. from gobbler import search_images`
 
 ```python
-def search_images(
-    query: Optional[str] = None,
-    mime_type: Optional[str] = None,
-    uploaded_by: Optional[str] = None,
-    scene: Optional[SceneType] = None,
-    keywords: Optional[list[str]] = None,
-    span_id: Optional[int] = None,
-    uploaded_before: Optional[float] = None,
-    uploaded_after: Optional[float] = None,
-    limit: int = 10,
-    skip: int = 0,
-) -> list[tuple[float | None, Image]]:
+# Video processing (combined audio + frames)
+from gobbler.processors.video.core import VideoProcessor
+vid_proc = VideoProcessor(spf=5)  # one frame every 5 seconds
+spans = vid_proc.process("/path/to/video.mp4")
+for span in spans:
+    print(f"{span.start:.1f}-{span.end:.1f}", span.short_description)
 ```
 
-Returns a list of tuples, the first element of the tuples is cosine score when `query` is passed, `None` otherwise. The list is sorted in descending order of scores.
+```python
+# Video frames only (no transcription)
+frames, ranges = vid_proc.process("/path/to/video.mp4", frames_only=True)
+print(len(frames), "frames extracted")
+```
+
+```python
+# HTML processing (enrich text with media descriptions)
+from gobbler.processors.html.core import HTMLProcessor
+html_proc = HTMLProcessor()
+text_with_media = html_proc.process("/path/to/page.html")
+print(text_with_media[:500])
+```
+
+```python
+# Custom prompts example (image)
+from gobbler.models.utils import ClipScene
+custom = {ClipScene.DIAGRAM: "Describe the diagram focusing on axes and trends."}
+img_obj = img_proc.process("/path/to/diagram.png", scene_to_prompt=custom, fallback_prompt="Describe the content.")
+```
+
+> NOTE: Azure/OpenAI credentials, LibreOffice, ffmpeg, etc. must be configured per environment variables referenced in `gobbler.cred` before these snippets succeed.
+
+## DocumentProcessor.process()
+**Location:** `gobbler/processors/docs/core.py`
+
+Extracts structured objects (figures, tables, text regions, formulas, etc.) from a document (PDF or Office file). Non-PDF Office files are first converted to PDF using LibreOffice (local) or a remote conversion service.
 
 Parameters:
+- `path: str` Absolute or relative path to the input file. If not found, raises `FileNotFoundError`.
+- `no_ocr: bool = False` If True, skips OCR / vision model calls; descriptions will be empty strings.
+- `use_fitz_on_text: bool = False` If True, for text-like YOLO detections (plain text, titles, *_caption) it extracts text directly with PyMuPDF instead of OCR.
+- `yolo_class_to_prompt: Optional[dict[YOLOScene, str]] = None` Custom mapping of YOLO object classes to system prompts. Must be provided together with `yolo_fallback_prompt`.
+- `yolo_fallback_prompt: Optional[str] = None` Fallback system prompt when a class-specific prompt is absent. Must be provided with `yolo_class_to_prompt`.
+- `identify_keywords: bool = True` If True, keywords are extracted (via KeyBERT) either from raw description text (when prompts are user supplied or using fitz text mode) or taken from model JSON output.
 
-- `scene:` Filter by image category, must be an attribute of `gobbler.processors.image.utils.SceneType` enum.
-- `span_id:` This returns images linked to a span.
-  > Look at common parameters of `search_*` above for other parameters.
+Return Type:
+- `list[DocumentObject]`
+  - Each `DocumentObject` fields:
+    - `id: int | None` (database id placeholder, may be None)
+    - `uri: str` original file URI/path
+    - `mime_type: str`
+    - `size: int` bytes
+    - `uploaded_by: str`
+    - `uploaded_at: int` epoch seconds
+    - `version: int`
+    - `hash: str` content hash
+    - `page: int` zero-based page index
+    - `position: Position(x1, y1, x2, y2)` page pixel (or point) rectangle
+    - `type: str | None` detected scene / object label (e.g., figure, table, plain_text)
+    - `content: str` textual description or extracted text; for tables may contain HTML table snippet
+    - `keywords: list[str]` keyword list (may be empty)
+  - Convenience property:
+    - `table -> list[list[Any]] | [] | None` parsed 2D table rows (None if not a table; empty list if parsing failed)
+
+Behavior:
+1. Optionally converts non-PDF Office docs to PDF.
+2. Opens the PDF with PyMuPDF and iterates pages.
+3. Runs YOLO to detect regions; skips `ABANDON` class.
+4. For each region: either crops and OCRs / describes via vision model or pulls text directly (if `use_fitz_on_text`).
+5. Gathers keywords either by KeyBERT on text content or from JSON returned by the model.
+6. Returns `list[DocumentObject]` with positional metadata, type, content, and keywords.
+
+Raises:
+- `AssertionError` if only one of `yolo_class_to_prompt` / `yolo_fallback_prompt` is supplied.
+- `FileNotFoundError` if `path` does not exist.
+- Propagates runtime errors from conversion or downstream model usage.
 
 ---
 
-#### `4. from gobbler import ingest_video`
+## ImageProcessor.process()
+**Location:** `gobbler/processors/image/core.py`
 
-```python
-def ingest_video(
-    uri: str,
-    uploaded_by: str = "system",
-    version: Optional[float] = None,
-    processor: Optional[VideoProcessor] = None,
-    download_headers: Optional[dict[str, str]] = None,
-    throw_if_duplicate: bool = True,
-) -> list[Span]:
-```
-
-> Look at common parameters of `ingest_*` above.
-
----
-
-#### `5. from gobbler import search_spans`
-
-```python
-def search_spans(
-    short_query: Optional[str] = None,
-    long_query: Optional[str] = None,
-    mime_type: Optional[str] = None,
-    keywords: Optional[list[str]] = None,
-    uploaded_before: Optional[int] = None,
-    uploaded_after: Optional[int] = None,
-    limit: int = 10,
-    skip: int = 0,
-) -> list[tuple[float | None, Span]]:
-```
-
-Returns a list of tuples, the first element of the tuples is cosine score when `short_query` or `long_query` is passed, `None` otherwise. The list is sorted in descending order of scores.
+Classifies and (optionally) OCRs / describes an image, returning a structured `Image` object.
 
 Parameters:
+- `path: str` Path to an image file (must have MIME type starting with `image/`).
+- `no_ocr: bool = False` If True, skips model call and returns empty description & keywords.
+- `scene: Optional[ClipScene] = None` Force a scene classification instead of automatic CLIP-based classification.
+- `scene_to_prompt: Optional[dict[ClipScene, str]] = None` Custom system prompts per scene; must be given together with `fallback_prompt`.
+- `fallback_prompt: Optional[str] = None` Fallback system prompt; must accompany `scene_to_prompt`.
+- `identify_keywords: bool = True` If True, extract keywords (KeyBERT) when custom prompts are provided; otherwise rely on model JSON.
 
-- `short_query:` This matches against the field `short_description` of the spans collection.
-- `long_query:` This matches against the field `long_description` of the spans collection.
-  > Look at common parameters of `search_*` above for other parameters.
+Return Type:
+- `Image`
+  - Fields:
+    - `id: int | None`
+    - `uri: str`
+    - `mime_type: str`
+    - `size: int`
+    - `uploaded_by: str`
+    - `uploaded_at: int`
+    - `version: int`
+    - `hash: str`
+    - `shape: str` "<height>x<width>"
+    - `scene: ClipScene | None` inferred or provided scene (TEXT, DIAGRAM, TABULAR, etc.)
+    - `description: str`
+    - `keywords: list[str]`
+
+Behavior:
+1. Validates file existence and MIME type.
+2. Classifies scene (unless provided) using CLIP plus heuristic adjustments.
+3. If `no_ocr` returns immediately with blank description & keywords.
+4. Builds prompt mapping (default or user provided) and selects fallback.
+5. Calls Azure Vision model (chat completions) to obtain description + keywords (direct JSON or plain text + post-keyword extraction depending on user prompts).
+6. Returns `Image` with metadata, shape, scene, description, and keywords.
+
+Raises:
+- `AssertionError` for mismatched prompt args.
+- `FileNotFoundError` if path missing.
+- `ValueError` if MIME type not an image.
+- `RuntimeError` if description generation fails.
 
 ---
 
-### `6. from gobbler import ingest_document`
+## VideoProcessor.process()
+**Location:** `gobbler/processors/video/core.py`
 
-```python
-def ingest_document(
-    uri: str,
-    uploaded_by: str = "system",
-    version: Optional[float] = None,
-    processor: Optional[DocumentProcessor] = None,
-    download_headers: Optional[dict[str, str]] = None,
-    throw_if_duplicate: bool = True,
-) -> list[DocumentObject]:
-```
-
-> Look at common parameters of `ingest_*` above.
-
----
-
-### `7. from gobbler import search_document_objects`
-
-```python
-def search_document_objects(
-    query: Optional[str] = None,
-    mime_type: Optional[str] = None,
-    page: Optional[int] = None,
-    type: Optional[ChunkType] = None,
-    keywords: Optional[list[str]] = None,
-    uploaded_before: Optional[int] = None,
-    uploaded_after: Optional[int] = None,
-    limit: int = 10,
-    skip: int = 0,
-) -> list[tuple[float | None, DocumentObject]]:
-```
-
-Returns a list of tuples, the first element of the tuples is cosine score when `query` is passed, `None` otherwise. The list is sorted in descending order of scores.
+Extracts temporal topic spans (and optionally key frames / frame analyses) from a video. Can operate in three modes: audio-only, frames-only, or combined.
 
 Parameters:
+- `path: str` Video file path.
+- `no_ocr: bool = False` If True, frame OCR/description is skipped; frames will still be sampled and classified if needed, but descriptions & keywords will be blank.
+- `audio_only: bool = False` If True, only audio transcription + topic segmentation is performed (no frame extraction/assignment).
+- `frames_only: bool = False` If True, only returns processed frame images + time ranges (no audio transcription/topics). Automatically enforced if the video has no audio track (unless `audio_only=True`, which then raises).
+- `frame_scene_to_prompt: Optional[dict[ClipScene, str]] = None` Custom prompts for frame OCR; must accompany `frame_fallback_prompt`.
+- `frame_fallback_prompt: Optional[str] = None` Fallback prompt for frames; must accompany `frame_scene_to_prompt`.
+- `identify_keywords: bool = True` If True, extracts keywords (similar logic to ImageProcessor) for frame descriptions.
 
-- `page:` Index of a page of documents, matches against the `page` field of `document_objects` collection, starts from 0.
-- `type:` Type of object from the document, can be `text`, `table`, `figure` or `marginalia`, must be an attribute of the `agentic_doc.common.ChunkType` enum.
-  > Look at common parameters of `search_*` above for other parameters.
+Return Types:
+- Combined or audio modes: `list[Span]`
+  - Each `Span` fields:
+    - `id: int | None`
+    - `uri: str`
+    - `mime_type: str`
+    - `size: int`
+    - `uploaded_by: str`
+    - `uploaded_at: int`
+    - `version: int`
+    - `hash: str`
+    - `start: float` seconds
+    - `end: float` seconds
+    - `short_description: str` summary for the time range
+    - `long_description: str` concatenated transcript text in the range
+    - `keywords: list[str]`
+    - `frames: dict[int, Image] | list[Image]` mapping midpoint timestamps to key frame `Image` objects (dict form used here). Empty if `audio_only`.
+- Frames-only mode: `tuple[list[Image], list[dict[str, float]]]`
+  - First element: list of processed frame `Image` objects (see Image fields above)
+  - Second element: list of dicts `{ "start": float, "end": float }` giving temporal coverage for each frame
+
+Behavior:
+1. Validates file existence and video MIME type.
+2. Determines if audio track exists; adjusts mode (forces frames-only if no audio and not frames_only; errors if audio_only is set without audio).
+3. If frames-only: extracts frames (skip & dedupe via SSIM / histogram), processes each with `ImageProcessor`, and returns frames + their time ranges.
+4. Otherwise: transcribes audio (Azure Whisper), segments into topics (Azure LLM with structured JSON), builds spans.
+5. If not `audio_only`, also processes frames then assigns frames to spans when overlap >= configured seconds-per-frame.
+6. Returns final spans or frame tuple depending on mode.
+
+Raises:
+- `AssertionError` for mismatched prompt args.
+- `FileNotFoundError` if path missing.
+- `ValueError` for non-video input or invalid audio-only request without audio track.
+- `RuntimeError` if topic extraction fails.
 
 ---
 
-#### `8. from gobbler import o_search`
+## HTMLProcessor.process()
+**Location:** `gobbler/processors/html/core.py`
 
-```python
-def o_search(
-    query: Optional[str] = None,
-    keywords: Optional[list[str]] = None,
-    uploaded_before: Optional[int] = None,
-    uploaded_after: Optional[int] = None,
-    extra_fields: Optional[dict[str, Any]] = None,
-    limit: int = 10,
-) -> list[tuple[float | None, Union[Image, Span, DocumentObject]]]:
-```
+Parses an HTML file, extracts textual content, and inlines processed representations of embedded images and videos (optionally restricted to a subset of media types).
 
-> Look at common parameters of `search_*` above.
+Parameters:
+- `path: str` Path to an HTML file.
+- `base_url: str = ""` Base directory or URL used to resolve relative media `src` paths.
+- `no_ocr: bool = None` If truthy, skips media OCR and returns only extracted plain text (trafilatura or fallback DOM text).
+- `img_only: bool = False` If True, only `<img>` tags are processed; videos ignored.
+- `video_only: bool = False` If True, only `<video>` tags are processed; images ignored.
 
-Short for Omni search, this function will look for relevant content in all collections and return `limit` tuples where the first element of the tuple is a cosine score and the second may be an `Image`, `Span` or `DocumentObject`.
+Return Type:
+- `str` enriched plain text. Media references replaced with synthetic tags of the form `<img key="..." ... ></img>` or `<video key="..." ... ></video>` containing serialized metadata from underlying `Image` / `Span.to_json()` outputs. When multiple video spans returned for a `<video>` tag they are concatenated line-wise.
+
+Behavior:
+1. Loads and parses HTML with BeautifulSoup.
+2. If `no_ocr`, returns extracted plain text only.
+3. Determines allowed media tags based on `img_only` / `video_only`.
+4. For each allowed media element: resolves or downloads the media file (including base64 data URIs), invokes `ImageProcessor` or `VideoProcessor`, and replaces the element with a placeholder.
+5. Extracts main textual content with `trafilatura` (fallback: raw text) and replaces placeholders with serialized media tag representations.
+6. Returns a single string containing enriched text with synthetic media tags.
+
+Raises:
+- `FileNotFoundError` if HTML path missing.
+- Logs and skips media elements that fail processing (does not raise unless file missing).
 
 ---
 
-#### Data models
+## Office Conversion (Helper)
+Although not a `process()` method, document ingestion depends on `office_to_pdf()` in `gobbler/processors/docs/utils.py`, which performs local LibreOffice conversion (preferred) or falls back to a remote service.
 
-`Image`, `Span` and `DocumentObject` have the same fields as their corresponding collections schemas, except for any vector fields. Data models also expose a `to_json()` method to get the data as a JSON object.
+---
+
+## Common Patterns & Conventions
+- All processors validate file existence early and raise `FileNotFoundError` on missing input.
+- Paired prompt arguments must be provided together (asserted) to avoid partial customization.
+- Keyword extraction logic depends on whether user prompts (plain text responses) or model JSON responses are used.
+- Temporary files (converted PDFs, extracted frames, audio chunks) are cleaned up where possible; warnings are logged if cleanup fails.
