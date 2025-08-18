@@ -34,6 +34,12 @@ class DocumentProcessor(BaseProcessor):
             )
         self.image_processor = ImageProcessor()
 
+    def can_fitz_handle(self, scene: YOLOScene) -> bool:
+        return scene and (
+            scene in (YOLOScene.PLAIN_TEXT, YOLOScene.TITLE)
+            or scene.value.endswith("_caption")
+        )
+
     def process_page(
         self,
         page: fitz.Page,
@@ -59,14 +65,7 @@ class DocumentProcessor(BaseProcessor):
                 box_image = page_image
             else:
                 box_image = page_image.crop(coord)
-            if (
-                use_fitz
-                and scene
-                and (
-                    scene in (YOLOScene.PLAIN_TEXT, YOLOScene.TITLE)
-                    or scene.value.endswith("_caption")
-                )
-            ):
+            if use_fitz and self.can_fitz_handle(scene):
                 description = page.get_textbox(fitz.Rect(*coord))
             elif not no_ocr:
                 sys_msg = yolo_class_to_prompt.get(scene, yolo_fallback_prompt)
@@ -124,27 +123,28 @@ class DocumentProcessor(BaseProcessor):
                     yolo_fallback_prompt,
                     prompts_from_user,
                 )
-                for position, label, description in page_boxes:
+                for position, scene, description in page_boxes:
                     keywords = []
-                    if identify_keywords and (
-                        use_fitz_on_text or prompts_from_user
-                    ):
-                        keywords = [
-                            word for word, _ in run_keybert(description)
-                        ]
-                    else:
-                        desc_obj = json.loads(description)
-                        description, keywords = (
-                            desc_obj["description"],
-                            desc_obj["keywords"],
-                        )
+                    if identify_keywords:
+                        if prompts_from_user or (
+                            use_fitz_on_text and self.can_fitz_handle(scene)
+                        ):
+                            keywords = [
+                                word for word, _ in run_keybert(description)
+                            ]
+                        else:
+                            desc_obj = json.loads(description)
+                            description, keywords = (
+                                desc_obj["description"],
+                                desc_obj["keywords"],
+                            )
 
                     doc_objects.append(
                         DocumentObject(
                             **metadata,
                             page=page_idx,
                             position=position,
-                            type=label,
+                            type=scene,
                             content=description,
                             keywords=keywords,
                         )
