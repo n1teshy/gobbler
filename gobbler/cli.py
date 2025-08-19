@@ -140,13 +140,13 @@ def main():
     doc_group.add_argument(
         "--yolo-fallback-clip-threshold",
         type=float,
-        help="YOLO fallback CLIP threshold",
+        help="YOLO fallback CLIP threshold, when YOLO misses content, CLIP is used to classify the whole image",
         metavar="",
     )
     doc_group.add_argument(
         "--filled-pixel-region-stddev",
         type=int,
-        help="Standard deviation for filled pixel regions",
+        help="Standard deviation for filled pixel regions, assumed lowest for a region with content, used to determine if YOLO missed content outside its bboxes",
         metavar="",
     )
     doc_group.add_argument(

@@ -34,6 +34,12 @@
 
 - Ensure all environment variables are set, read `env_instructions.txt` for more info.
 
+## CLI
+Try using the cli for quicker runs.
+```bash
+python -m gobbler -h
+````
+
 ## Quick Usage Snippets
 Minimal examples showing instantiation and calling `process()`.
 
