@@ -175,10 +175,6 @@ def main():
         glb.video_seconds_per_frame = args.seconds_per_frame
     if args.yolo_prob_threshold is not None:
         glb.yolo_prob_threshold = args.yolo_prob_threshold
-    if args.yolo_fallback_clip_threshold is not None:
-        glb.yolo_fallback_clip_threshold = args.yolo_fallback_clip_threshold
-    if args.filled_pixel_region_stddev is not None:
-        glb.filled_pixel_region_stddev = args.filled_pixel_region_stddev
 
     # ------- heavy imports -------
 

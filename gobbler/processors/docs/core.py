@@ -132,7 +132,7 @@ class DocumentProcessor(BaseProcessor):
                             keywords = [
                                 word for word, _ in run_keybert(description)
                             ]
-                        else:
+                        elif description:
                             desc_obj = json.loads(description)
                             description, keywords = (
                                 desc_obj["description"],

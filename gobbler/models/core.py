@@ -181,9 +181,9 @@ def merge_boxes(box1: tuple, box2: tuple) -> tuple:
         YOLOScene.PLAIN_TEXT,
     }
 
-    if label1 in general_labels:
+    if label1 in general_labels and label2 not in general_labels:
         label = label1
-    elif label2 in general_labels:
+    elif label2 in general_labels and label1 not in general_labels:
         label = label2
     else:
         label = (
@@ -192,7 +192,6 @@ def merge_boxes(box1: tuple, box2: tuple) -> tuple:
             > calculate_box_area(box2[0], box2[1], box2[2], box2[3])
             else label2
         )
-
     confidence = max(box1[5], box2[5])
     return (x1, y1, x2, y2, label, confidence)
 
@@ -224,62 +223,106 @@ def group_related_boxes(
     return merged_boxes
 
 
-def has_missed_content(
-    image: Image.Image, boxes: list[tuple], filled_pixels_stddev: int
-) -> bool:
-    img_array = np.array(image.convert("L"))
-    mask = np.ones(img_array.shape, dtype=bool)
-    for x1, y1, x2, y2, _, _ in boxes:
-        mask[int(y1) : int(y2), int(x1) : int(x2)] = False
+def mask_boxes(image: Image.Image, boxes: list[tuple]) -> Image.Image:
+    img_array = np.array(image)
+    mask = np.zeros(img_array.shape[:2], dtype=bool)
 
-    uncovered_pixels = img_array[mask]
-    if len(uncovered_pixels) == 0:
-        return False
+    for x1, y1, x2, y2, *_ in boxes:
+        mask[int(y1) : int(y2), int(x1) : int(x2)] = True
 
-    background_stddev = np.std(uncovered_pixels)
-    return background_stddev > filled_pixels_stddev
+    masked_array = img_array.copy()
+    if len(img_array.shape) == 3:
+        channels = img_array.shape[2]
+        if channels == 3:
+            masked_array[mask] = [255, 255, 255]
+        elif channels == 4:
+            masked_array[mask] = [255, 255, 255, 255]
+        else:
+            masked_array[mask] = [255] * channels
+    else:
+        masked_array[mask] = 255
+    return Image.fromarray(masked_array)
+
+
+def get_raw_yolo_boxes(
+    paths_or_images: list[Union[str, Image.Image]],
+    yolo_threshold: Optional[float] = None,
+) -> list[list[tuple]]:
+    global yolo_model
+
+    if yolo_model is None:
+        from doclayout_yolo.utils import LOGGER
+
+        LOGGER.setLevel(logging.ERROR)
+        yolo_model = YOLOv10(get_yolo_path())
+
+    yolo_threshold = yolo_threshold or glb.yolo_prob_threshold
+    device = "cuda" if get_cuda_memory() > 0 else "cpu"
+    paths_or_images = make_pil_images(paths_or_images)
+
+    bbox_batch = yolo_model.predict(
+        paths_or_images, imgsz=1024, conf=yolo_threshold, device=device
+    )
+
+    result = []
+    for idx, bbox_data in enumerate(bbox_batch):
+        boxes = []
+        for box in bbox_data.boxes:
+            xyxy = list(map(int, box.xyxy.tolist()[0]))
+            yolo_label = yolo_model.names[box.cls.item()]
+            confidence = box.conf.item()
+            boxes.append(
+                tuple(xyxy + [label_to_yolo_scene(yolo_label), confidence])
+            )
+        result.append(boxes)
+
+    return result
 
 
 def run_yolo(
     paths_or_images: list[Union[str, Image.Image]],
     yolo_threshold: Optional[float] = None,
     raw_boxes: bool = False,
-    fallback_clip_threshold: Optional[float] = None,
-    filled_pixels_stddev: Optional[int] = None,
+    low_effort: bool = False,
 ) -> list[
     list[
         tuple[float, float, float, float, Optional[YOLOScene], Optional[float]]
     ]
 ]:
-    """
-    Returns `list[tuple[x1, y1, x2, y2, YOLOScene | None, confidence]]` per image.
-    """
-    global yolo_model
-    result = []
-
-    if yolo_model is None:
-        # prevents YOLO from polluting stdout
-        from doclayout_yolo.utils import LOGGER  # noqa
-
-        LOGGER.setLevel(logging.ERROR)
-
-        yolo_model = YOLOv10(get_yolo_path())
-
     yolo_threshold = yolo_threshold or glb.yolo_prob_threshold
-    fallback_clip_threshold = (
-        fallback_clip_threshold or glb.yolo_fallback_clip_threshold
-    )
-    filled_pixels_stddev = (
-        filled_pixels_stddev or glb.filled_pixel_region_stddev
-    )
-
-    device = "cuda" if get_cuda_memory() > 0 else "cpu"
     paths_or_images = make_pil_images(paths_or_images)
-    bbox_batch = yolo_model.predict(
-        paths_or_images, imgsz=1024, conf=yolo_threshold, device=device
-    )
-    for idx, bbox_data in enumerate(bbox_batch):
-        if len(bbox_data.boxes) == 0:
+    first_run_boxes = get_raw_yolo_boxes(paths_or_images, yolo_threshold)
+
+    if low_effort:
+        all_boxes_per_image = first_run_boxes
+    else:
+        masked_images = []
+        for idx, boxes in enumerate(first_run_boxes):
+            if boxes:
+                masked_image = mask_boxes(paths_or_images[idx], boxes)
+                masked_images.append(masked_image)
+            else:
+                masked_images.append(paths_or_images[idx])
+
+        second_run_boxes = get_raw_yolo_boxes(masked_images, yolo_threshold)
+
+        all_boxes_per_image = []
+        for idx in range(len(paths_or_images)):
+            all_boxes = first_run_boxes[idx] + second_run_boxes[idx]
+            all_boxes_per_image.append(all_boxes)
+
+    all_boxes_per_image = [
+        [box_tup for box_tup in boxes if box_tup[4] != YOLOScene.ABANDON]
+        for boxes in all_boxes_per_image
+    ]
+    if raw_boxes:
+        return all_boxes_per_image
+
+    result = []
+    for idx in range(len(paths_or_images)):
+        all_boxes = all_boxes_per_image[idx]
+
+        if not all_boxes:
             result.append(
                 [
                     (
@@ -294,47 +337,9 @@ def run_yolo(
             )
             continue
 
-        boxes = []
-        for box in bbox_data.boxes:
-            xyxy = list(map(int, box.xyxy.tolist()[0]))
-            yolo_label = yolo_model.names[box.cls.item()]
-            confidence = box.conf.item()
-            boxes.append(
-                tuple(xyxy + [label_to_yolo_scene(yolo_label), confidence])
-            )
+        grouped_boxes = group_related_boxes(all_boxes)
+        result.append(grouped_boxes)
 
-        if raw_boxes:
-            result.append(boxes)
-            continue
-
-        grouped_boxes = group_related_boxes(boxes)
-        # TODO: check if some *_caption type boxes were not grouped
-        if has_missed_content(
-            paths_or_images[idx], grouped_boxes, filled_pixels_stddev
-        ):
-            logger.info(
-                f"YOLO missed content, using CLIP to get page-level category"
-            )
-            clip_label = None
-            scene, prob = run_clip([paths_or_images[idx]])[0][0]
-            prob = prob if prob >= fallback_clip_threshold else None
-            if prob is not None:
-                clip_label = {
-                    ClipScene.TABULAR: YOLOScene.TABLE,
-                    ClipScene.TEXT: YOLOScene.PLAIN_TEXT,
-                    ClipScene.DIAGRAM: YOLOScene.FIGURE,
-                }.get(scene, None)
-            push_this = (
-                0,
-                0,
-                paths_or_images[idx].width,
-                paths_or_images[idx].height,
-                clip_label,
-                prob,
-            )
-            result.append([push_this])
-        else:
-            result.append(grouped_boxes)
     return result
 
 

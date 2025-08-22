@@ -241,7 +241,7 @@ class VideoProcessor(BaseProcessor):
                     self.image_processor.process(
                         frames[idx],
                         no_ocr,
-                        None,
+                        scene,
                         frame_scene_to_prompt,
                         frame_fallback_prompt,
                         identify_keywords,
@@ -313,8 +313,8 @@ class VideoProcessor(BaseProcessor):
                 path,
                 no_ocr,
                 frame_scene_to_prompt,
-                identify_keywords,
                 frame_fallback_prompt,
+                identify_keywords,
             )
 
         spans = self.get_spans(path, metadata)
@@ -323,8 +323,8 @@ class VideoProcessor(BaseProcessor):
                 path,
                 no_ocr,
                 frame_scene_to_prompt,
-                identify_keywords,
                 frame_fallback_prompt,
+                identify_keywords,
             )
             self.assign_frames(spans, frames, frame_time_ranges)
 

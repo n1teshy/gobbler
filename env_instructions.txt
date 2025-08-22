@@ -4,35 +4,28 @@
 # EMB: short for embedding
 # OFFICE_CONVERSION_SERVER: URL for the document conversion server, e.g. http://localhost:8000
 
+# this will be used to get topics from a video's audio transcription, optional if video processing is not required
 AZURE_LLM_KEY=
 AZURE_LLM_BASE=
 AZURE_LLM_DEPLOYMENT=
 AZURE_LLM_MODEL=
 AZURE_LLM_VERSION=
 
+# this will be used to transcribe a video's audio, optional if video processing is not required
 AZURE_WHISPER_KEY=
 AZURE_WHISPER_BASE=
 AZURE_WHISPER_DEPLOYMENT=
 AZURE_WHISPER_MODEL=
 AZURE_WHISPER_VERSION=
 
+# this will be used to caption document bboxes and video frames, optional in no_ocr mode
 AZURE_VLM_KEY=
 AZURE_VLM_BASE=
 AZURE_VLM_DEPLOYMENT=
 AZURE_VLM_MODEL=
 AZURE_VLM_VERSION=
 
-AZURE_EMB_KEY=
-AZURE_EMB_BASE=
-AZURE_EMB_DEPLOYMENT=
-AZURE_EMB_MODEL=
-AZURE_EMB_VERSION=
-
-MILVUS_HOST=
-MILVUS_PORT=
-MILVUS_USER=
-MILVUS_PASSWORD=
-
+# this will be used toc onvert non-PDF documents to PDF, optional if you're not working with non-PDF documents
 OFFICE_CONVERSION_SERVER=
 
 --- Advanced usage ---
@@ -45,7 +38,3 @@ COLOR_HIST_THRESHOLD = Color historgram similarity score that means video-frames
 VIDEO_SECONDS_PER_FRAME = How many seconds to skip in a video to get the next frame, default: 4
 
 YOLO_PROB_THRESHOLD = YOLO confidence less than this won't be trusted, default: 0.65
-YOLO_FALLBACK_CLIP_THRESHOLD = If YOLO fails to identify boxes in an image CLIP will be used to classify
-    the entire image, this threshold will be used instead of CLIP_PROB_THRESHOLD, default: 0.75
-FILLED_PIXEL_REGION_STDDEV = This standard deviation of a pixel region means there is content in that pixel
-    region, this is used to check if YOLO missed regions with content in an image, default: 22

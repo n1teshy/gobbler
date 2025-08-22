@@ -7,7 +7,7 @@ import os
 import random
 import string
 import tempfile
-import time
+from datetime import datetime
 from typing import Any, Optional, Union
 from urllib.parse import urljoin, urlparse
 
@@ -17,7 +17,7 @@ from PIL import Image
 
 import gobbler.meta as meta
 
-usage_file_name = int(time.time())
+usage_file_name = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
 
 
 def temp_file(suffix: str, length: int = 10) -> str:
