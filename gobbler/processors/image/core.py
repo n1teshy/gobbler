@@ -136,8 +136,8 @@ class ImageProcessor(BaseProcessor):
         scene: ClipScene,
         scene_to_prompt: dict[ClipScene, str],
         fallback_prompt: str,
-        identify_keywords: bool,
         prompts_from_user: bool,
+        identify_keywords: bool,
     ) -> Optional[dict[str, str]]:
         if scene in self.scene_to_desc:
             return self.scene_to_desc[scene]
