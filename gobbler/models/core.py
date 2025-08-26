@@ -150,7 +150,7 @@ def should_merge(
         YOLOScene.PLAIN_TEXT,
         YOLOScene.TABLE,
     }:
-        if box1[3] < box2[1]:
+        if box1[1] < box2[1]:
             distance = calculate_distance(box1, box2)
             avg_height = (abs(box1[3] - box1[1]) + abs(box2[3] - box2[1])) / 2
             return distance < proximity_factor * avg_height
@@ -159,7 +159,7 @@ def should_merge(
         YOLOScene.PLAIN_TEXT,
         YOLOScene.TABLE,
     }:
-        if box2[3] < box1[1]:
+        if box2[1] < box1[1]:
             distance = calculate_distance(box1, box2)
             avg_height = (abs(box1[3] - box1[1]) + abs(box2[3] - box2[1])) / 2
             return distance < proximity_factor * avg_height
