@@ -5,8 +5,12 @@ from subprocess import CalledProcessError, run
 from tempfile import NamedTemporaryFile
 from typing import Any
 
-from fastapi import FastAPI, File, Response, UploadFile
-from fastapi.responses import StreamingResponse
+try:
+    from fastapi import FastAPI, File, Response, UploadFile
+    from fastapi.responses import StreamingResponse
+except ImportError as e:
+    print(f"missing dependencies! {e}")
+    print("pip install fastapi uvicorn python-multipart")
 
 app = FastAPI()
 logger = getLogger("convert-logger")
