@@ -1,27 +1,38 @@
-import logging
+import os
 from typing import Optional, Union
 
 import numpy as np
-from doclayout_yolo import YOLOv10
+import torch
 from keybert import KeyBERT
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
-import gobbler.constants as c
 import gobbler.globals as glb
-from gobbler.logger import logger
 from gobbler.models.utils import (
     ClipScene,
     YOLOScene,
     get_cuda_memory,
-    get_yolo_path,
     idx_to_clip_scene,
     label_to_yolo_scene,
+    postprocess_yolo_preds,
+    preprocess_yolo_images,
 )
 from gobbler.utils import make_pil_images
 
 clip_utils = (None, None)
 yolo_model = None
+yolo_labels = [
+    "title",
+    "plain text",
+    "abandon",
+    "figure",
+    "figure_caption",
+    "table",
+    "table_caption",
+    "table_footnote",
+    "isolate_formula",
+    "formula_caption",
+]
 keybert_model = None
 
 clip_scene_descriptions = [
@@ -251,32 +262,31 @@ def get_raw_yolo_boxes(
     global yolo_model
 
     if yolo_model is None:
-        from doclayout_yolo.utils import LOGGER
-
-        LOGGER.setLevel(logging.ERROR)
-        yolo_model = YOLOv10(get_yolo_path())
+        path = os.path.join(
+            glb.core_dir, "models/checkpoints/doclayout_yolo.torchscript"
+        )
+        yolo_model = torch.jit.load(path, map_location="cpu")
+        yolo_model.eval()
 
     yolo_threshold = yolo_threshold or glb.yolo_prob_threshold
-    device = "cuda" if get_cuda_memory() > 0 else "cpu"
     paths_or_images = make_pil_images(paths_or_images)
+    images = preprocess_yolo_images(paths_or_images)
+    with torch.inference_mode():
+        out = yolo_model(images)
 
-    bbox_batch = yolo_model.predict(
-        paths_or_images, imgsz=1024, conf=yolo_threshold, device=device
-    )
+    img_boxes = postprocess_yolo_preds(out, yolo_threshold)
+    output = []
+    for idx, boxes in enumerate(img_boxes):
+        output.append([])
+        w, h = paths_or_images[idx].size
+        h_factor, w_factor = h / 1024, w / 1024
+        for box in boxes.tolist():
+            x1, y1 = int(box[0] * w_factor), int(box[1] * h_factor)
+            x2, y2 = int(box[2] * w_factor), int(box[3] * h_factor)
+            label = label_to_yolo_scene(yolo_labels[int(box[4])])
+            output[-1].append((x1, y1, x2, y2, label, box[-1]))
 
-    result = []
-    for idx, bbox_data in enumerate(bbox_batch):
-        boxes = []
-        for box in bbox_data.boxes:
-            xyxy = list(map(int, box.xyxy.tolist()[0]))
-            yolo_label = yolo_model.names[box.cls.item()]
-            confidence = box.conf.item()
-            boxes.append(
-                tuple(xyxy + [label_to_yolo_scene(yolo_label), confidence])
-            )
-        result.append(boxes)
-
-    return result
+    return output
 
 
 def run_yolo(

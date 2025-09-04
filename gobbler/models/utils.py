@@ -1,12 +1,12 @@
-import os
 from enum import Enum
 
-import appdirs
+import numpy as np
 import pynvml
+import torch
+from PIL import Image
+from torchvision.ops import batched_nms, nms
 
-import gobbler.meta as meta
 from gobbler.logger import logger
-from gobbler.utils import download
 
 
 class ClipScene(str, Enum):
@@ -84,14 +84,54 @@ def get_cuda_memory() -> int:
         return 0
 
 
-def get_yolo_path() -> str:
-    path = os.path.join(appdirs.user_data_dir(meta.name))
-    os.makedirs(path, exist_ok=True)
-    path = os.path.join(path, "doc_yolo.pt")
-    if not os.path.exists(path):
-        logger.info("downloading YOLO model to %s", path)
-        download(
-            "https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench/resolve/main/doclayout_yolo_docstructbench_imgsz1024.pt?download=true",
-            path,
+def preprocess_yolo_images(images: list[Image.Image]) -> torch.Tensor:
+    images = [img.convert("RGB").resize((1024, 1024)) for img in images]
+    images = np.array(images).astype(np.float32) / 255.0
+    images = np.transpose(images, (0, 3, 1, 2))  # [B, C, H, W]
+    return torch.from_numpy(images).contiguous()
+
+
+def postprocess_yolo_preds(
+    preds: torch.Tensor,
+    conf_thresh: float,
+    iou_thres: float = 0.50,
+    max_det: int = 300,
+    class_agnostic: bool = False,
+) -> list[torch.Tensor]:
+    if preds.ndim != 3 or preds.shape[-1] < 6:
+        raise ValueError(
+            f"Expected preds of shape [B, N, 6], got {tuple(preds.shape)}"
         )
-    return path
+
+    outputs: list[torch.Tensor] = []
+    for b in range(preds.shape[0]):
+        p = preds[b]
+        boxes = p[:, 0:4]
+        scores = p[:, 4]
+        labels = p[:, 5].to(torch.int64)
+        keep = scores >= conf_thresh
+        if keep.any():
+            boxes = boxes[keep]
+            scores = scores[keep]
+            labels = labels[keep]
+        else:
+            outputs.append(
+                torch.empty((0, 6), dtype=torch.float32, device=preds.device)
+            )
+            continue
+        if class_agnostic:
+            keep_idx = nms(boxes, scores, iou_thres)
+        else:
+            keep_idx = batched_nms(boxes, scores, labels, iou_thres)
+        if max_det is not None and keep_idx.numel() > max_det:
+            top = torch.topk(scores[keep_idx], k=max_det).indices
+            keep_idx = keep_idx[top]
+        kept_boxes = boxes[keep_idx]
+        kept_scores = scores[keep_idx]
+        kept_labels = labels[keep_idx].to(torch.float32).unsqueeze(1)
+        out = torch.cat(
+            [kept_boxes, kept_labels, kept_scores.unsqueeze(1)], dim=1
+        )  # [x1,y1,x2,y2,cls,conf]
+        outputs.append(out)
+
+    return outputs
