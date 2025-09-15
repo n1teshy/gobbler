@@ -357,5 +357,5 @@ def run_keybert(text: str) -> list[tuple[str, float]]:
     global keybert_model
 
     if keybert_model is None:
-        keybert_model = KeyBERT("bert-base-nli-mean-tokens")
+        keybert_model = KeyBERT("all-MiniLM-L6-v2")
     return keybert_model.extract_keywords(text)
