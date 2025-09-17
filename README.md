@@ -106,6 +106,7 @@ Parameters:
 - `yolo_fallback_prompt: Optional[str] = None` Fallback system prompt when a class-specific prompt is absent. Must be provided with `yolo_class_to_prompt`.
 - `identify_keywords: bool = True` If True, keywords are extracted (via KeyBERT) either from raw description text (when prompts are user supplied or using fitz text mode) or taken from model JSON output.
 - `only_pages: list[int] = []` list of 0-indexed page numbers that will be processed, use this if you want to skip some pages.
+- `use_libre_cli: bool = False` Specifies whether LibreOffice CLI (local) should to convert documents to PDF, otherwise the document conversion server is used.
 
 Return Type:
 - `list[DocumentObject]`

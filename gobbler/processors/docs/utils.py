@@ -63,15 +63,15 @@ def is_office_to_pdf_available() -> bool:
         return False
 
 
-def office_to_pdf(document_path: str) -> str:
+def office_to_pdf(document_path: str, use_libre_cli: bool = False) -> str:
     temp_pdf_path = temp_file(".pdf")
     document_path_obj = Path(document_path)
     extension = document_path_obj.suffix.lower()
 
-    if shutil.which("libreoffice") is not None:
-        if extension not in {".ppt", ".pptx", ".doc", ".docx"}:
-            raise ValueError(f"Unsupported file format: {document_path}")
+    if extension not in {".ppt", ".pptx", ".doc", ".docx"}:
+        raise ValueError(f"Unsupported file format: {document_path}")
 
+    if use_libre_cli:
         output_dir = Path(temp_pdf_path).parent
         try:
             run(
@@ -84,22 +84,17 @@ def office_to_pdf(document_path: str) -> str:
                     str(output_dir),
                     str(document_path_obj),
                 ],
-                capture_output=True,
                 check=True,
             )
             expected_pdf_path = output_dir / f"{document_path_obj.stem}.pdf"
-            if expected_pdf_path.exists():
-                shutil.move(str(expected_pdf_path), temp_pdf_path)
-                return temp_pdf_path
-            else:
+            if not expected_pdf_path.exists():
                 raise RuntimeError(f"PDF not generated for {document_path}")
+            shutil.move(str(expected_pdf_path), temp_pdf_path)
+            return temp_pdf_path
         except CalledProcessError as e:
             raise RuntimeError(f"LibreOffice conversion error: {e}")
         except Exception as e:
             raise RuntimeError(f"Unexpected error: {e}")
-
-    if extension not in {".ppt", ".pptx", ".doc", ".docx"}:
-        raise ValueError(f"Unsupported file format: {document_path}")
 
     with open(document_path, "rb") as f:
         files = {

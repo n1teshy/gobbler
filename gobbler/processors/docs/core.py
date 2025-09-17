@@ -29,9 +29,7 @@ from gobbler.utils import (
 class DocumentProcessor(BaseProcessor):
     def __init__(self):
         if not is_office_to_pdf_available():
-            logger.warning(
-                "libreoffice is not available, will not be able to process non-PDF files"
-            )
+            logger.warning("Office conversion server is not available")
         self.image_processor = ImageProcessor()
 
     def can_fitz_handle(self, scene: YOLOScene) -> bool:
@@ -91,6 +89,7 @@ class DocumentProcessor(BaseProcessor):
         yolo_fallback_prompt: Optional[str] = None,
         identify_keywords: bool = True,
         only_pages: list[int] = [],
+        use_libre_cli: bool = False,
     ) -> list[DocumentObject]:
         assert (
             yolo_class_to_prompt is None == yolo_fallback_prompt is None
@@ -113,7 +112,7 @@ class DocumentProcessor(BaseProcessor):
             if not os.path.exists(path):
                 raise FileNotFoundError(f"File not found: {path}")
             if os.path.splitext(path)[1] != ".pdf":
-                converted_pdf = office_to_pdf(path)
+                converted_pdf = office_to_pdf(path, use_libre_cli)
 
             fitz_doc = fitz.open(converted_pdf or path)
             for page_idx, page in enumerate(fitz_doc):
@@ -128,6 +127,7 @@ class DocumentProcessor(BaseProcessor):
                     yolo_fallback_prompt,
                     prompts_from_user,
                 )
+
                 for position, scene, description in page_boxes:
                     keywords = []
                     if identify_keywords:
