@@ -105,6 +105,7 @@ Parameters:
 - `yolo_class_to_prompt: Optional[dict[YOLOScene, str]] = None` Custom mapping of YOLO object classes to system prompts. Must be provided together with `yolo_fallback_prompt`.
 - `yolo_fallback_prompt: Optional[str] = None` Fallback system prompt when a class-specific prompt is absent. Must be provided with `yolo_class_to_prompt`.
 - `identify_keywords: bool = True` If True, keywords are extracted (via KeyBERT) either from raw description text (when prompts are user supplied or using fitz text mode) or taken from model JSON output.
+- `only_pages: list[int] = []` list of 0-indexed page numbers that will be processed, use this if you want to skip some pages.
 
 Return Type:
 - `list[DocumentObject]`

@@ -90,6 +90,7 @@ class DocumentProcessor(BaseProcessor):
         yolo_class_to_prompt: Optional[dict[YOLOScene, str]] = None,
         yolo_fallback_prompt: Optional[str] = None,
         identify_keywords: bool = True,
+        only_pages: list[int] = [],
     ) -> list[DocumentObject]:
         assert (
             yolo_class_to_prompt is None == yolo_fallback_prompt is None
@@ -102,6 +103,7 @@ class DocumentProcessor(BaseProcessor):
         yolo_fallback_prompt = this_or_that(
             yolo_fallback_prompt, sys_msg_any_caption
         )
+        only_pages = set(only_pages)
         metadata = get_file_metadata(path)
         doc_objects = []
         fitz_doc = None
@@ -115,6 +117,9 @@ class DocumentProcessor(BaseProcessor):
 
             fitz_doc = fitz.open(converted_pdf or path)
             for page_idx, page in enumerate(fitz_doc):
+                if page_idx not in only_pages:
+                    continue
+
                 page_boxes = self.process_page(
                     page,
                     no_ocr,
